@@ -1,4 +1,6 @@
 cleanse_data <- function(data, drop_columns = FALSE) {
+  library(readr)
+  
   # This should not be needed again. It was used to prune the text fields from the
   # data set initially, but the data was updated it github after running this command.
   if (drop_columns) {
