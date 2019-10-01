@@ -26,6 +26,7 @@ cleanse_data <- function(data, drop_columns = FALSE) {
         propcomment,
         propextent_txt,
         region_txt,
+        resolution,
         scite1,
         scite2,
         scite3,

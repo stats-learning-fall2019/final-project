@@ -7,14 +7,14 @@ source("scripts/utils.R")
 data_file = 'data/gtdb_cleansed.csv'
 data = cleanse_data(read_csv(data_file), drop_columns = FALSE)
 
-# uncomment to update data file after additional cleansing
+# uncomment to remove a subset of columns and save changes
+# data = subset(data, select=-c(resolution))
 # write.csv(data, 'data/gtdb_cleansed.csv')
 
 # uncomment to launch data viewer in new tab
-# View(data)
+View(data)
 
 # uncomment to launch data editor in new window
 # fix(data)
-
 
 View(data)
