@@ -16,3 +16,8 @@ data = cleanse_data(read_csv(data_file), drop_columns = FALSE)
 
 # uncomment to launch data editor in new window
 # fix(data)
+
+# FIXME: na.omit currently removes all rows! Can we judiciously remove additional columns
+# FIXME: to obtain an NA free dataset?
+# data = na.omit(data)
+# nrow(data)
