@@ -5,7 +5,11 @@ source("scripts/utils.R")
 
 # Load data
 data_file = 'data/gtdb_cleansed.csv'
-data = cleanse_data(read_csv(data_file), drop_columns = FALSE)
+data = cleanse_data(read_csv(data_file), drop_columns = FALSE); head(data)
+
+# high-level info on cleansed data set
+n = nrow(data); n
+p = ncol(data); p
 
 # uncomment to remove a subset of columns and save changes
 # data = subset(data, select=-c(colname))
