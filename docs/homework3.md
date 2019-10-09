@@ -13,16 +13,17 @@ The *Global Terrorism Database* contains over 180,000 observations and 135 varia
 2. *Geospatial Variables* (Lat/Long, Region, Country, City, Province, etc.)
 3. *Incident Descriptive Variables* (Attack Type, Duration of Incident, Success/Failure, Weapons Used, Targets, etc.)
 4. *Perpetrator Descriptive Variables* (Terrorist group membership, # Perpetrators, etc.)
-5. *Casuality and Damage Variables* (# Fatalities, # Injured, etc.) 
+5. *Casualty and Damage Variables* (# Fatalities, # Injured, etc.)  
 
 The diversity of the variables in this data set lends itself to a variety of research directions, and supports the creation of numerous regression and categorical models.
 
 ## II. Research Questions and Proposed Approaches with Individual Assignments
-Each sub-section below identifies the agenda and responsibilties of each data scientist. Each data scientist is expected to take ownership of their agenda, including implementation of solutions, final write-up, and presentation. Sean Kugele will serve as team lead, facilitating group collaboration and assisting in the resolution of any impediments that jeapordize the fulfillment of the research goals outlined below.
+Each sub-section below identifies the agenda and responsibilities of each data scientist. Each data scientist is expected to take ownership of their agenda, including implementation of solutions, final write-up, and presentation. Sean Kugele will serve as team lead, facilitating group collaboration and assisting in the resolution of any impediments that jeopardize the fulfillment of the research goals outlined below.
 
 ### James Willson (Data Scientist)
-1.
-2.
+Goal 1: Predict if an attack will be successful based on a variety of different factors.
+
+Goal 2: Estimate the number of casualties in a successful terrorist attack.
 
 ### Kun Li (Data Scientist)
 1.
