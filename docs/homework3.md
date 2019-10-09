@@ -4,7 +4,7 @@
 ## I. Objectives and Activities
 
 **Objective:** 
-Our objective is to create statistical models from the [Global Terrorism Database](https://www.kaggle.com/START-UMD/gtd) data set for the purposes of prediction and inference. 
+Our objective is to create statistical models from the [Global Terrorism Database](https://www.kaggle.com/START-UMD/gtd) data set for the purposes of prediction and inference. Specific research goal are outlined in the Section II, along with the principal data scientist assigned to each. Proposed solutions and methods of evaluation will differ depending on the nature of each question, and will be discussed individually in the context of each research topic.
 
 **Data Set:**
 The *Global Terrorism Database* contains over 180,000 observations and 135 variables. Each observation corresponds to a terrorism incident that occurred between 1970 and 2017. The type of information available for each incident is very diverse, including (but not limited to) the following:
@@ -17,19 +17,18 @@ The *Global Terrorism Database* contains over 180,000 observations and 135 varia
 
 The diversity of the variables in this data set lends itself to a variety of research directions, and supports the creation of numerous regression and categorical models.
 
-Specific research questions are discussed in the next section, along with the principal investigator assigned to each question. Proposed solutions and methods of evaluation will differ depending on the nature of each question, and will be discussed individually in the context of each research topic.
-
 ## II. Research Questions and Proposed Approaches with Individual Assignments
+Each sub-section below identifies the agenda and responsibilties of each data scientist. Each data scientist is expected to take ownership of their agenda, including implementation of solutions, final write-up, and presentation. Sean Kugele will serve as team lead, facilitating group collaboration and assisting in the resolution of any impediments that jeapordize the fulfillment of the research goals outlined below.
 
-### James Willson
+### James Willson (Data Scientist)
 1.
 2.
 
-### Kun Li
+### Kun Li (Data Scientist)
 1.
 2.
 
-### Sean Kugele
+### Sean Kugele (Data Scientist, Team Lead)
 Goal 1: Predict the group responsible for perpetrating a terrorist attack.
 
 Goal 2: Estimate the probability of an attack based on temporal and geo-spatial variables.
