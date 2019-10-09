@@ -30,12 +30,17 @@ Specific research questions are discussed in the next section, along with the pr
 2.
 
 ### Sean Kugele
-1.
-2.
+Goal 1: Predict the group responsible for perpetrating a terrorist attack.
+
+Goal 2: Estimate the probability of an attack based on temporal and geo-spatial variables.
+
+Goal 3: Identify *clusters* of incidents that reveal interesting patterns in the data.
 
 ## III. Methods of Evaluation
 
 ## IV. Potential (General) Difficulties and Concerns
 Preliminary analysis of the dataset has revealed that the data is sparsely populated and will require a significant amount of data cleansing before it will be usable. Many of the variables are also redundant; therefore, the actual number of usable variables is likely closer to 90.
 
-The data set spans over four decades of observations, and the data was collected by multiple agencies. As a result, the data may be inconsistent in quality, and the data collection methodology that was used may have changed over time. These factors will likely introduce sources of irreducible errors into models generated from this data. According to the documentation, many of the variables were introduced after 1997; therefore, we will need to make a case-by-case decision about the inclusion of these older observations, depending on the nature of the research question and the needed features.
+The data set spans over four decades of observations, and the data was collected by multiple agencies. As a result, the data may be inconsistent in quality, and the data collection methodology that was used may have changed over time. These factors will likely introduce sources of irreducible errors into models generated from this data. 
+
+According to the documentation, many of the variables were introduced after 1997; therefore, we will need to make a case-by-case decision about the inclusion of these older observations, depending on the nature of the research question and the needed features.
