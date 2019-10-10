@@ -26,8 +26,9 @@ Goal 1: Predict if an attack will be successful based on a variety of different 
 Goal 2: Estimate the number of casualties in a successful terrorist attack.
 
 ### Kun Li (Data Scientist)
-1.
-2.
+Goal 1: Predict the extent/dollar-amount of property damage from any given attack.
+
+Goal 2: Identify factors that could predict the target/victim type in an attack.
 
 ### Sean Kugele (Data Scientist, Team Lead)
 Goal 1: Predict the group responsible for perpetrating a terrorist attack.
@@ -37,6 +38,7 @@ Goal 2: Estimate the probability of an attack based on temporal and geo-spatial 
 Goal 3: Identify *clusters* of incidents that reveal interesting patterns in the data.
 
 ## III. Methods of Evaluation
+We could use stepwise regression to find the best predictors in any given model. Under such a method, we could use criteria like AIC and BIC to evaluate the fit. A potential function that could be used is the recursive feature elimination function in the R-package "caret".
 
 ## IV. Potential (General) Difficulties and Concerns
 Preliminary analysis of the dataset has revealed that the data is sparsely populated and will require a significant amount of data cleansing before it will be usable. Many of the variables are also redundant; therefore, the actual number of usable variables is likely closer to 90.
