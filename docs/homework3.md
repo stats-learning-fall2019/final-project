@@ -21,9 +21,13 @@ The diversity of the variables in this data set lends itself to a variety of res
 Each sub-section below identifies the agenda and responsibilities of each data scientist. Each data scientist is expected to take ownership of their agenda, including implementation of solutions, final write-up, and presentation. Sean Kugele will serve as team lead, facilitating group collaboration and assisting in the resolution of any impediments that jeopardize the fulfillment of the research goals outlined below.
 
 ### James Willson (Data Scientist)
-Goal 1: Predict if an attack will be successful based on a variety of different factors.
+**Goal 1:** Predict if an attack will be successful based on a variety of different factors.
 
-Goal 2: Estimate the number of casualties in a successful terrorist attack.
+*Proposed Solutions:* Since this is a classification problem, various models, such as Linear Regression or Decision Trees, will be attempted. Several potential issues might arise; for instance, backwards selection may not be possible as the data is so sparse that using all the variables to begin with would leave no rows to model from. Also, certain features, while being good predictors might not make much sense in the model. An example would be *Fatalities*; while it would clearly be a good predictor of a successful attack, it would be almost useless in practice as you would never know the fatalities until after the attack had occurred and its success status was already known.
+
+**Goal 2:** Estimate the number of casualties in a successful terrorist attack.
+
+*Proposed Solutions:* Given the nature of the problem, a method such as linear regression will probably be the best choice. Many of the same issues regarding the selection of features will apply to this problem as well. Again, many otherwise relevant features might excluded based on the intended use of the model, that being attempting to find ways to minimize casualties *before* attacks occur and/or find terrorist groups or other features that seem to be more dangerous as they lead to higher casualty numbers.  
 
 ### Kun Li (Data Scientist)
 Goal 1: Predict the extent/dollar-amount of property damage from any given attack.
