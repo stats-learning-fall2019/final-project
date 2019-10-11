@@ -4,7 +4,7 @@
 ## I. Objectives and Activities
 
 **Objective:** 
-Our objective is to create statistical models from the [Global Terrorism Database](https://www.kaggle.com/START-UMD/gtd) data set for the purposes of prediction and inference. Specific research goal are outlined in the Section II, along with the principal data scientist assigned to each. Proposed solutions and methods of evaluation will differ depending on the nature of each question, and will be discussed individually in the context of each research topic.
+Our objective is to create statistical models from the [Global Terrorism Database](https://www.kaggle.com/START-UMD/gtd) data set for the purposes of prediction and inference. Specific research goal are outlined in the Section II, along with the principal data scientist assigned to each. Proposed solutions and methods will be discussed in the context of each research goal.
 
 **Data Set:**
 The *Global Terrorism Database* contains over 180,000 observations and 135 variables. Each observation corresponds to a terrorism incident that occurred between 1970 and 2017. The type of information available for each incident is very diverse, including (but not limited to) the following:
@@ -15,10 +15,10 @@ The *Global Terrorism Database* contains over 180,000 observations and 135 varia
 4. *Perpetrator Descriptive Variables* (Terrorist group membership, # Perpetrators, etc.)
 5. *Casualty and Damage Variables* (# Fatalities, # Injured, etc.)  
 
-The diversity of the variables in this data set lends itself to a variety of research directions, and supports the creation of numerous regression and categorical models.
+The diversity of the variables in this data set lends itself to a variety of research directions, and supports the creation of numerous regression and classification models.
 
 ## II. Research Questions and Proposed Approaches with Individual Assignments
-Each sub-section below identifies the agenda and responsibilities of each data scientist. Each data scientist is expected to take ownership of their agenda, including implementation of solutions, final write-up, and presentation. Sean Kugele will serve as team lead, facilitating group collaboration and assisting in the resolution of any impediments that jeopardize the fulfillment of the research goals outlined below.
+The sub-sections below identify the agenda and responsibilities of each data scientist. Each data scientist is expected to take ownership of their agenda, including implementation of solutions, final write-up, and presentation. Sean Kugele will serve as team lead, facilitating group collaboration and assisting in the resolution of any impediments that jeopardize the fulfillment of the group's research goals.
 
 ### James Willson (Data Scientist)
 **Goal 1:** Predict if an attack will be successful based on a variety of different factors.
@@ -39,14 +39,21 @@ Goal 2: Identify factors that could predict the target/victim type in an attack.
 *Proposed Solutions:* One could use linear regression and decision trees to approach this multiclass classification problem. A potential problem that one could face is that the target types are centered around a few specific categories, such that there isn't sufficient data for the less common target types to train the model. 
 
 ### Sean Kugele (Data Scientist, Team Lead)
-Goal 1: Predict the group responsible for perpetrating a terrorist attack.
+Goal 1: Predict the terrorist group responsible for perpetrating a terrorist attack.
+
+*Proposed Solutions:* A variety of classification methods will be attempted and compared including logisitic regression, lda, qda, knn, decision trees, support vector machines, etc. to identify the model that can most accurately predict the terrorist group responsible for terrorist attacks in a "test" dataset. The models will be further analyzed to identify the most significant features contributing to the prediction of responsible terrorist groups.
 
 Goal 2: Estimate the probability of an attack based on temporal and geo-spatial variables.
 
+*Proposed Solutions:* This data set has a rich set of temporal and geo-spatial variables that we will use to develop one or more models predicting the probability of a terrorist attack. Classification models will be created (for example, using logistic regression, lda, and knn) to identify a usable model. Heat maps, or other relevant visualizations, will be created to visually identify regions and time periods (e.g., months, holidays, days of week, etc.) by level of attack risk. 
+
 Goal 3: Identify *clusters* of incidents that reveal interesting patterns in the data.
 
+*Proposed Solutions:* Given the large number of variables in this dataset, it seems advantageous to apply a unsupervised learning algorithm (like K-means) to identify patterns of regularity in the data. The features included in this analysis may need to be adjusted to identify interesting patterns. Clusters will be visualized and interpreted.
+
+
 ## III. Methods of Evaluation
-We could use stepwise regression to find the best predictors in any given model. Under such a method, we could use criteria like AIC and BIC to evaluate the fit. A potential function that could be used is the recursive feature elimination function in the R-package "caret".
+All models will be evaluated based on appropriate measures of model quality (e.g., adjusted-R^2, AIC, BIC, etc.) and ROC curves will be created for classification algorithms. The data set will be partitioned into training and testing data sets, and model preditions will be evaluated based on the testing data set, which will only contain observations that were withheld from model training. Cross-validation will be also be applied to determine model quality.
 
 ## IV. Potential (General) Difficulties and Concerns
 Preliminary analysis of the dataset has revealed that the data is sparsely populated and will require a significant amount of data cleansing before it will be usable. Many of the variables are also redundant; therefore, the actual number of usable variables is likely closer to 90.
