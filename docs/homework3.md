@@ -30,24 +30,24 @@ The sub-sections below identify the agenda and responsibilities of each data sci
 *Proposed Solutions:* Given the nature of the problem, a method such as linear regression will probably be the best choice. Many of the same issues regarding the selection of features will apply to this problem as well. Again, many otherwise relevant features might excluded based on the intended use of the model, that being attempting to find ways to minimize casualties *before* attacks occur and/or find terrorist groups or other features that seem to be more dangerous as they lead to higher casualty numbers.  
 
 ### Kun Li (Data Scientist)
-Goal 1: Predict the extent/dollar-amount of property damage from any given attack.
+**Goal 1:** Predict the extent/dollar-amount of property damage from any given attack.
 
 *Proposed Solutions:* Most likely will try to use a linear regression to model the damage extent. In order to find the best predictors, it would be helpful to test all the factors. One could do so efficiently using the stepwise regression and recursive feature elimination. The concern is definitely the data quality, and one might have to remove many variables before conducting the regressions.
 
-Goal 2: Identify factors that could predict the target/victim type in an attack.
+**Goal 2:** Identify factors that could predict the target/victim type in an attack.
 
 *Proposed Solutions:* One could use linear regression and decision trees to approach this multiclass classification problem. A potential problem that one could face is that the target types are centered around a few specific categories, such that there isn't sufficient data for the less common target types to train the model. 
 
 ### Sean Kugele (Data Scientist, Team Lead)
-Goal 1: Predict the terrorist group responsible for perpetrating a terrorist attack.
+**Goal 1:** Predict the terrorist group responsible for perpetrating a terrorist attack.
 
 *Proposed Solutions:* A variety of classification methods will be attempted and compared including logisitic regression, lda, qda, knn, decision trees, support vector machines, etc. to identify the model that can most accurately predict the terrorist group responsible for terrorist attacks in a "test" dataset. The models will be further analyzed to identify the most significant features contributing to the prediction of responsible terrorist groups.
 
-Goal 2: Estimate the probability of an attack based on temporal and geo-spatial variables.
+**Goal 2:** Estimate the probability of an attack based on temporal and geo-spatial variables.
 
 *Proposed Solutions:* This data set has a rich set of temporal and geo-spatial variables that we will use to develop one or more models predicting the probability of a terrorist attack. Classification models will be created (for example, using logistic regression, lda, and knn) to identify a usable model. Heat maps, or other relevant visualizations, will be created to visually identify regions and time periods (e.g., months, holidays, days of week, etc.) by level of attack risk. 
 
-Goal 3: Identify *clusters* of incidents that reveal interesting patterns in the data.
+**Goal 3:** Identify *clusters* of incidents that reveal interesting patterns in the data.
 
 *Proposed Solutions:* Given the large number of variables in this dataset, it seems advantageous to apply a unsupervised learning algorithm (like K-means) to identify patterns of regularity in the data. The features included in this analysis may need to be adjusted to identify interesting patterns. Clusters will be visualized and interpreted.
 
