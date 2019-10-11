@@ -32,7 +32,11 @@ Each sub-section below identifies the agenda and responsibilities of each data s
 ### Kun Li (Data Scientist)
 Goal 1: Predict the extent/dollar-amount of property damage from any given attack.
 
+*Proposed Solutions:* Most likely will try to use a linear regression to model the damage extent. In order to find the best predictors, it would be helpful to test all the factors. One could do so efficiently using the stepwise regression and recursive feature elimination. The concern is definitely the data quality, and one might have to remove many variables before conducting the regressions.
+
 Goal 2: Identify factors that could predict the target/victim type in an attack.
+
+*Proposed Solutions:* One could use linear regression and decision trees to approach this multiclass classification problem. A potential problem that one could face is that the target types are centered around a few specific categories, such that there isn't sufficient data for the less common target types to train the model. 
 
 ### Sean Kugele (Data Scientist, Team Lead)
 Goal 1: Predict the group responsible for perpetrating a terrorist attack.
