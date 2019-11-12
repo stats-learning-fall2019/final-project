@@ -1,3 +1,10 @@
+load_pkgs <- function(packages){
+  new.pkg <- packages[!(packages %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE)
+  sapply(packages, require, character.only = TRUE)
+}
+
 cleanse_data <- function(data, drop_columns = FALSE) {
   library(readr)
   
@@ -56,3 +63,4 @@ cleanse_data <- function(data, drop_columns = FALSE) {
   # Do Something
   return(data)
 }
+
