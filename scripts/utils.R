@@ -5,6 +5,18 @@ load_pkgs <- function(packages){
   sapply(packages, require, character.only = TRUE)
 }
 
+# Maps codes to their corresponding names 
+# Note: assumes the mapping dataframe (df) has "code" and "name" fields
+map_code_to_name <- function(code, df) {
+  match = which(df$code==code)
+  
+  if (length(match) > 0) {
+    return(df[match,]$name)
+  }
+  
+  return("Other")
+}
+
 cleanse_data <- function(data, drop_columns = FALSE) {
   library(readr)
   
