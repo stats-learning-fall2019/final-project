@@ -17,6 +17,20 @@ map_code_to_name <- function(code, df) {
   return("Other")
 }
 
+# Maps names to their corresponding codes
+# Note: assumes the mapping dataframe (df) has "code" and "name" fields
+map_name_to_code <- function(name, df) {
+  match = which(df$name==name)
+  
+  if (length(match) > 0) {
+    return(df[match,]$code)
+  }
+  else {
+    warning(sprintf("No matching code found. Returning -1"))
+    return(-1)
+  }
+}
+
 cleanse_data <- function(data, drop_columns = FALSE) {
   library(readr)
   
