@@ -6,6 +6,8 @@ library(randomForest)
 library(gbm)
 library(corrplot)
 library(caret)
+library(rpart)
+library(rattle)	
 
 # Load Terrorism Dataset
 data <- read.csv('../data/gtdb_cleansed.csv')
@@ -101,3 +103,81 @@ text(tree.model2,pretty=0)
 
 # Looking at the results, it seems that that "Problem 4" from the last model is still a major issue here.
 # Also "targtype1.20" is a useless variable since it corresponds to an unknown target type.
+data.encoded$targtype1.20 <- NULL
+
+tree.model3 <- tree(success~.,data.encoded)
+summary(tree.model3)
+
+
+plot(tree.model3)
+text(tree.model3,pretty=0)
+
+# This is now predicting everything to be a success. The problem seems to be that the data skewed to much that way.
+
+table(data.encoded$success)[1] / nrow(data.encoded) # precentage of failed attacks
+
+# One idea is to just predict the probability of success instead of just 1 or 0
+tree.model3
+# 1) root 74694 47560.0 1 ( 0.096956 0.903044 )  
+# 2) property < 0.5 28810 28150.0 1 ( 0.191635 0.808365 )  
+# 4) ishostkid < 0.5 23194 25330.0 1 ( 0.235621 0.764379 )  
+# 8) weaptype1.5 < 0.5 11429 14700.0 1 ( 0.343162 0.656838 ) *
+#   9) weaptype1.5 > 0.5 11765  9143.0 1 ( 0.131152 0.868848 ) *
+#   5) ishostkid > 0.5 5616   627.5 1 ( 0.009972 0.990028 ) *
+#   3) property > 0.5 45884 14680.0 1 ( 0.037508 0.962492 )  
+# 6) attacktype1.1 < 0.5 44802 11700.0 1 ( 0.028816 0.971184 )  
+# 12) iyear < 2004.5 28820 10150.0 1 ( 0.042575 0.957425 ) *
+#   13) iyear > 2004.5 15982   834.3 1 ( 0.004005 0.995995 ) *
+#   7) attacktype1.1 > 0.5 1082  1454.0 1 ( 0.397412 0.602588 ) *
+tree.model4 <- rpart(success~., data.encoded)
+tree.model4
+fancyRpartPlot(tree.model4)
+summary(tree.model4)
+# Variable importance
+# attacktype1.3   weaptype1.6      property   weaptype1.5   targtype1.3  targtype1.14   targtype1.4         crit3 attacktype1.1     doubtterr 
+# 18            18            18            10             6             5             4             4             3             3 
+# iyear attacktype1.6       suicide  targtype1.17 
+# 3             2             2             2 
+
+## Testing models 
+
+# Testing on training data
+
+# Predictions for Tree model 4 -- better model 
+pred <- rep("0", nrow(data.encoded))
+pred[predict(tree.model4)[,1] <.5] <- "1"
+actual <- as.factor(data.encoded$success)
+table(actual, pred)
+
+recall <- 6758 / (6758 + 13301) # 0.3369061
+precision <- 6758 / (6758 + 3101) # 0.6854651
+
+# Predictions for Tree model 3 -- model that doesn't work well
+pred <- rep(0, nrow(data.encoded))
+pred[predict(tree.model3)[,1] <.5] <- 1
+actual <- data.encoded$success
+table(actual, pred)
+
+# Testing w/ testing data
+
+# Test model 4 on training data
+library(caTools)
+set.seed(42)
+sample <- sample.split(data.encoded, SplitRatio=.80)
+train <- subset(data.encoded, sample==TRUE)
+test <- subset(data.encoded, sample==FALSE)
+
+tree.model4.train <- rpart(success~., train)
+pred <- rep(0, nrow(test))
+pred[predict(tree.model4.train, test)[,1] <.5] <- 1
+actual <- test$success
+table(actual, pred)
+
+recall <- 1363 / (1363 + 2647) # 0.3399002
+precision <- 1363 / (1363 + 642) # 0.6798005
+
+# This model (tree.model4) seems a lot better, recall is a bit low though (if you consider 0s to be positive events).
+# Model4 also generalizes a fairly well; the precision and recall scores remain about the same when using test/train data.
+
+# Since we have a fairly large class imbalancy probelm. One possibility we could look into might be undersampling/oversampling.
+# I.e. selecting less/more examples from a class to balance out the dataset
