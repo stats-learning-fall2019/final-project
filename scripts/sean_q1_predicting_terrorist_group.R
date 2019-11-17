@@ -229,13 +229,32 @@ assert("All incidents have extended with values in [0,1]",
 # feature: nkill #
 #****************#
 
-# change NA to 0 (assume no kills if none reported)
-data[which(is.na(data$nkill)),] = 0
+# change NA to 0 (assume no kills if not reported)
+data[which(is.na(data$nkill)),]$nkill = 0
 
 assert("All incidents have nkill >= 0 and no NAs",
-       nrow(data %>% filter(is.na(nkill) || nkill < 0)) == 0)
+       nrow(data %>% filter(is.na(nkill) | nkill < 0)) == 0)
 
+#*****************#
+# feature: nwound #
+#*****************#
+# change NA to 0 (assume none wounded if not reported)
+data[which(is.na(data$nwound)),]$nwound = 0
 
+assert("All incidents have nkill >= 0 and no NAs",
+       nrow(data %>% filter(is.na(nwound) | nwound < 0)) == 0)
+
+#*********************#
+# feature: propextent #
+#*********************#
+
+# change NAs and 4s (unknown) to 3s (minor)
+data[which(is.na(data$propextent) | data$propextent == 4),]$propextent = 3
+
+assert("All incidents have propextent in [1,3]",
+       nrow(data %>% filter(propextent %notin% seq(3))) == 0)
+
+View(data)
 # update data types
 
 
