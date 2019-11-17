@@ -6,7 +6,10 @@ source("scripts/utils.R")
 load_pkgs(c(
   
   # data manipulation libraries
-  "dplyr"
+  "dplyr",
+  
+  # code assertions and testing utilities
+  "testit"
 
 ))
 
@@ -19,11 +22,19 @@ gtdb_data = cleanse_data(read_csv(gtdb_data_file), drop_columns = FALSE)
 gtdb_country_codes = read_csv(gtdb_country_codes_file)
 gtdb_region_codes = read_csv(gtdb_region_codes_file)
 
+
+# remove incidents prior to 1997 since several fields
+# were not available prior to this data (e.g., claimed, nperps )
+gtdb_data_after_1997 <- gtdb_data %>% filter(iyear >= 1997)
+
+# leaves 117381
+nrow(gtdb_data_after_1997)
+
 # Entries with unknown group names
-unknown_group_data <- gtdb_data %>% filter(gname == 'Unknown')
+unknown_group_data <- gtdb_data_after_1997 %>% filter(gname == 'Unknown')
 
 # Entries with known group names
-known_group_data <- gtdb_data %>% filter(! N %in% unknown_group_data$N)
+known_group_data <- gtdb_data_after_1997 %>% filter(! N %in% unknown_group_data$N)
 
 
 # determine terrorist groups responsible for "many" attacks
@@ -33,7 +44,7 @@ groups_above_incident_threshold <- known_group_data %>%
   summarize(n=n()) %>% 
   filter(n>=min_n_attacks)
 
-# 32 groups with over 500 attacks
+# 64 groups with over 500 attacks
 nrow(groups_above_incident_threshold)
 
 
@@ -46,7 +57,7 @@ multi_regional_groups <- known_group_data %>%
   summarize(n_regions=n()) %>%
   filter(n_regions >= 2)
 
-# 290 multi-regional groups
+# 103 multi-regional groups
 nrow(multi_regional_groups)
 
 
@@ -56,67 +67,33 @@ major_groups_in_multiple_regions <- gtdb_data %>%
   filter(gname %in% multi_regional_groups$gname) %>%
   select(gname) %>% unique() %>% arrange(gname)
 
+# 22 groups
 nrow(major_groups_in_multiple_regions)
-
 #**************************************************************************#
 # Complete list of "major multi-regional groups" when min_n_attacks >= 100 #
 #**************************************************************************#
-# 1	African National Congress (South Africa)
-# 2	Al-Gama'at al-Islamiyya (IG)
-# 3	Al-Qaida in Iraq
-# 4	Al-Qaida in the Arabian Peninsula (AQAP)
-# 5	Al-Qaida in the Islamic Maghreb (AQIM)
-# 6	Anarchists
-# 7	Animal Liberation Front (ALF)
-# 8	Anti-Abortion extremists
-# 9	Armed Islamic Group (GIA)
-# 10	Armenian Secret Army for the Liberation of Armenia
-# 11	Basque Fatherland and Freedom (ETA)
-# 12	Black September
-# 13	Chechen Rebels
-# 14	Death Squad
-# 15	Democratic Revolutionary Alliance (ARDE)
-# 16	Dev Sol
-# 17	Guerrilla Army of the Poor (EGP)
-# 18	Gunmen
-# 19	Hamas (Islamic Resistance Movement)
-# 20	Hezbollah
-# 21	Hutu extremists
-# 22	Irish Republican Army (IRA)
-# 23	Islamic State of Iraq and the Levant (ISIL)
-# 24	Islamist extremists
-# 25	Jihadi-inspired extremists
-# 26	Kurdistan Workers' Party (PKK)
-# 27	Left-Wing Guerrillas
-# 28	Left-Wing Militants
-# 29	Liberation Tigers of Tamil Eelam (LTTE)
-# 30	M-19 (Movement of April 19)
-# 31	Maoists
-# 32	Movement of the Revolutionary Left (MIR) (Chile)
-# 33	Mujahedin-e Khalq (MEK)
-# 34	Muslim Brotherhood
-# 35	Muslim extremists
-# 36	Muslim Militants
-# 37	Muslim Separatists
-# 38	Narco-Terrorists
-# 39	Neo-Nazi extremists
-# 40	New People's Army (NPA)
-# 41	Nicaraguan Democratic Force (FDN)
-# 42	Palestine Liberation Organization (PLO)
-# 43	Palestinian Extremists
-# 44	Palestinians
-# 45	Popular Front for the Liberation of Palestine (PFLP)
-# 46	Protestant extremists
-# 47	Revolutionary Armed Forces of Colombia (FARC)
-# 48	Revolutionary Organization of People in Arms (ORPA)
-# 49	Salafist Group for Preaching and Fighting (GSPC)
-# 50	Separatists
-# 51	Shining Path (SL)
-# 52	Sikh Extremists
-# 53	Taliban
-# 54	Tehrik-i-Taliban Pakistan (TTP)
-# 55	Tribesmen
-# 56	White extremists
+# 1	Al-Qaida in Iraq
+# 2	Al-Qaida in the Arabian Peninsula (AQAP)
+# 3	Al-Qaida in the Islamic Maghreb (AQIM)
+# 4	Chechen Rebels
+# 5	Gunmen
+# 6	Hamas (Islamic Resistance Movement)
+# 7	Hezbollah
+# 8	Hutu extremists
+# 9	Islamic State of Iraq and the Levant (ISIL)
+# 10	Islamist extremists
+# 11	Kurdistan Workers' Party (PKK)
+# 12	Liberation Tigers of Tamil Eelam (LTTE)
+# 13	Maoists
+# 14	Muslim extremists
+# 15	New People's Army (NPA)
+# 16	Palestinian Extremists
+# 17	Revolutionary Armed Forces of Colombia (FARC)
+# 18	Salafist Group for Preaching and Fighting (GSPC)
+# 19	Separatists
+# 20	Taliban
+# 21	Tehrik-i-Taliban Pakistan (TTP)
+# 22	Tribesmen
 
 
 # removing groups cooresponding to general categories of terrorists that
@@ -136,6 +113,7 @@ groups_to_remove = c(
   'Muslim extremists',
   'Muslim Militants',
   'Muslim Separatists',
+  'Narco-Terrorists',
   'Neo-Nazi extremists',
   'Palestinians',
   'Palestinian Extremists',
@@ -149,49 +127,119 @@ groups_to_remove = c(
 terrorist_groups <- major_groups_in_multiple_regions %>% 
   filter(! gname %in% groups_to_remove)
 
-# 34 terrorist groups
+# 13 terrorist groups
 nrow(terrorist_groups)
 
 #********************************#
 # Final list of terrorist groups #
 #********************************#
-# 1	African National Congress (South Africa)
-# 2	Al-Gama'at al-Islamiyya (IG)
-# 3	Al-Qaida in Iraq
-# 4	Al-Qaida in the Arabian Peninsula (AQAP)
-# 5	Al-Qaida in the Islamic Maghreb (AQIM)
-# 6	Animal Liberation Front (ALF)
-# 7	Armed Islamic Group (GIA)
-# 8	Armenian Secret Army for the Liberation of Armenia
-# 9	Basque Fatherland and Freedom (ETA)
-# 10	Black September
-# 11	Democratic Revolutionary Alliance (ARDE)
-# 12	Dev Sol
-# 13	Guerrilla Army of the Poor (EGP)
-# 14	Hamas (Islamic Resistance Movement)
-# 15	Hezbollah
-# 16	Irish Republican Army (IRA)
-# 17	Islamic State of Iraq and the Levant (ISIL)
-# 18	Kurdistan Workers' Party (PKK)
-# 19	Liberation Tigers of Tamil Eelam (LTTE)
-# 20	M-19 (Movement of April 19)
-# 21	Movement of the Revolutionary Left (MIR) (Chile)
-# 22	Mujahedin-e Khalq (MEK)
-# 23	Muslim Brotherhood
-# 24	Narco-Terrorists
-# 25	New People's Army (NPA)
-# 26	Nicaraguan Democratic Force (FDN)
-# 27	Palestine Liberation Organization (PLO)
-# 28	Popular Front for the Liberation of Palestine (PFLP)
-# 29	Revolutionary Armed Forces of Colombia (FARC)
-# 30	Revolutionary Organization of People in Arms (ORPA)
-# 31	Salafist Group for Preaching and Fighting (GSPC)
-# 32	Shining Path (SL)
-# 33	Taliban
-# 34	Tehrik-i-Taliban Pakistan (TTP)
+# 1	Al-Qaida in Iraq
+# 2	Al-Qaida in the Arabian Peninsula (AQAP)
+# 3	Al-Qaida in the Islamic Maghreb (AQIM)
+# 4	Hamas (Islamic Resistance Movement)
+# 5	Hezbollah
+# 6	Islamic State of Iraq and the Levant (ISIL)
+# 7	Kurdistan Workers' Party (PKK)
+# 8	Liberation Tigers of Tamil Eelam (LTTE)
+# 9	New People's Army (NPA)
+# 10	Revolutionary Armed Forces of Colombia (FARC)
+# 11	Salafist Group for Preaching and Fighting (GSPC)
+# 12	Taliban
+# 13	Tehrik-i-Taliban Pakistan (TTP)
+
+# filter terrorist incidents to those assigned to accepted list of terrorist groups
+incidents <- known_group_data %>% filter(gname %in% terrorist_groups$gname)
+
+# 22,343 incidents match criteria
+nrow(incidents)
+
+#*******************#
+# choosing features #
+#*******************#
+
+# candidate list
+data <- incidents %>% select(
+  # response variable
+  gname, 
+  
+  # features
+  attacktype1, # categorical
+  claimed, # categorical
+  country, # categorical
+  extended, # categorical
+  iyear, # numerical
+  nkill, # numerical
+  
+  # too many NA and -99 values, so removing for now
+  # nperps, # numerical
+  
+  nwound, # numerical
+  propextent, # categorical
+  ransom, # categorical
+  success, # categorical
+  suicide, # categorical
+  targtype1, # categorical
+  weaptype1 # categorical
+  )
+
+#****************************#
+# data value transformations #
+#****************************#
+
+#**********************#
+# feature: attacktype1 #
+#**********************#
+
+# remove rows with unknown attacktype1 (e.g., 9)
+data <- data %>% filter(data$attacktype1 != 9)
+
+assert("All incidents have attacktypes with values in range [1,8]",
+  nrow(data %>% filter(data$attacktype1 %notin% seq(8))) == 0)
+
+#******************#
+# feature: claimed #
+#******************#
+
+# (1) change NAs to -9 (when in doubt assume no claim made)
+data[which(is.na(data$claimed)),]$claimed = -9
+
+# only 385 with -9, so dropping
+data <- data %>% filter(data$claimed != -9)
+
+# 19,852 remaining
+nrow(data)
+
+assert("All incidents have claimed with values in [0,1]",
+       nrow(data %>% filter(data$claimed %notin% c(0,1))) == 0)
+
+#******************#
+# feature: country #
+#******************#
+
+assert("All incidents have country with values in [4,1004]",
+       nrow(data %>% filter(data$country %notin% seq(4, 1004))) == 0)
+
+#*******************#
+# feature: extended #
+#*******************#
+assert("All incidents have extended with values in [0,1]",
+       nrow(data %>% filter(data$extended %notin% c(0,1))) == 0)
+
+#****************#
+# feature: nkill #
+#****************#
+
+# change NA to 0 (assume no kills if none reported)
+data[which(is.na(data$nkill)),] = 0
+
+assert("All incidents have nkill >= 0 and no NAs",
+       nrow(data %>% filter(is.na(nkill) || nkill < 0)) == 0)
 
 
-View(terrorist_groups)
+# update data types
+
+
+
 
 # logistic regression
 
