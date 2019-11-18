@@ -175,7 +175,10 @@ data <- incidents %>% select(
   
   nwound, # numerical
   propextent, # categorical
-  ransom, # categorical
+  
+  # too many NA and -9 (unknown) values, so removing for now
+  # ransom, # categorical
+  
   success, # categorical
   suicide, # categorical
   targtype1, # categorical
@@ -254,7 +257,46 @@ data[which(is.na(data$propextent) | data$propextent == 4),]$propextent = 3
 assert("All incidents have propextent in [1,3]",
        nrow(data %>% filter(propextent %notin% seq(3))) == 0)
 
-View(data)
+#******************#
+# feature: success #
+#******************#
+assert("All incidents have success in [0,1]",
+       nrow(data %>% filter(success %notin% c(0,1))) == 0)
+
+
+#******************#
+# feature: suicide #
+#******************#
+assert("All incidents have suicide in [0,1]",
+       nrow(data %>% filter(suicide %notin% c(0,1))) == 0)
+
+
+#********************#
+# feature: targtype1 #
+#********************#
+
+# removed 13 (other) and 20 (unknown)
+data <- data %>% filter(targtype1 %notin% c(13,20))
+
+assert("All incidents have targtype1 in {1..12, 14..19, 21, 22} ",
+       nrow(data %>% filter(targtype1 %notin% c(1:12, 14:19, 21:22))) == 0)
+
+#********************#
+# feature: weaptype1 #
+#********************#
+
+# removed 12 (other) and 13 (unknown)
+data <- data %>% filter(weaptype1 %notin% c(12,13))
+
+assert("All incidents have weaptype1 in [1,11]",
+       nrow(data %>% filter(weaptype1 %notin% seq(11))) == 0)
+
+
+# Verify that we didn't drop all incidents for any of the accepted terrorist groups
+assert("At least 1 incident for all of the terrorist groups",
+       nrow(data %>% select(gname) %>% unique()) == nrow(terrorist_groups))
+
+
 # update data types
 
 
