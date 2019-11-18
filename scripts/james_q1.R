@@ -255,3 +255,33 @@ roc22 <- pred
 plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
 lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
 # seems like the new model might have a little bit more area under the curve. Neither look that good.
+
+
+
+## Let's try a completely different approach. Logistic Regression
+logistic.model1 <- glm(success~., family="binomial",data.encoded)
+summary(logistic.model1)
+
+pred <- rep(0, nrow(data.encoded))
+pred[predict(logistic.model1, type="response") >.5] <- 1
+actual <- data.encoded$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.02058926
+precision <- results[1] / (results[1] + results[2])
+precision # 0.1019753
+
+roc31 <- actual
+roc32 <- pred
+# Plot ROC curves
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
+lines(roc(roc31, roc32, direction='<'), col='green', lwd=3)
+# New model doesn't work at all
+
+# Use backwards selection to find a better model
+
+
+
