@@ -294,12 +294,22 @@ assert("At least 1 incident for all of the terrorist groups",
 # 18,055 remaining
 nrow(data)
 
+# Correct types of all variables
+data$gname <- as.factor(data$gname)
+data$attacktype1 <- as.factor(data$attacktype1)
+data$claimed <- as.factor(data$claimed)
+data$country <- as.factor(data$country)
+data$extended <- as.factor(data$extended)
+data$iyear <- as.integer(data$iyear)
+data$nkill <- as.integer(data$nkill)
+data$nwound <- as.integer(data$nwound)
+data$propextent <- as.factor(data$propextent)
+data$success <- as.factor(data$success)
+data$suicide <- as.factor(data$suicide)
+data$targtype1 <- as.factor(data$targtype1)
+data$weaptype1 <- as.factor(data$weaptype1)
 
-
-
-
-
-
+str(data)
 
 
 # logistic regression
