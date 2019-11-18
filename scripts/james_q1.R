@@ -171,13 +171,87 @@ tree.model4.train <- rpart(success~., train)
 pred <- rep(0, nrow(test))
 pred[predict(tree.model4.train, test)[,1] <.5] <- 1
 actual <- test$success
-table(actual, pred)
+results <- table(actual, pred)
 
-recall <- 1363 / (1363 + 2647) # 0.3399002
-precision <- 1363 / (1363 + 642) # 0.6798005
+recall <- results[1] / (results[1] + results[1,2]) #1363 / (1363 + 2647) # 0.3399002
+recall
+precision <- results[1] / (results[1] + results[2])#1363 / (1363 + 642) # 0.6798005
+precision
+
+# Adjusting the threshold has very little impact on precision recall
+pred <- rep(0, nrow(test))
+pred[predict(tree.model4.train, test)[,1] <.3] <- 1
+actual <- test$success
+results <- table(actual, pred)
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.3581047
+precision <- results[1] / (results[1] + results[2]) 
+precision # 0.6459739
+
+# Plot ROC curve
+roc11 <- actual
+roc12 <- pred
+library(pROC)
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curve')
 
 # This model (tree.model4) seems a lot better, recall is a bit low though (if you consider 0s to be positive events).
 # Model4 also generalizes a fairly well; the precision and recall scores remain about the same when using test/train data.
 
 # Since we have a fairly large class imbalancy probelm. One possibility we could look into might be undersampling/oversampling.
 # I.e. selecting less/more examples from a class to balance out the dataset
+library(ROSE)
+
+data.balanced <- ovun.sample(success~.,data=data.encoded, method="over")
+table(data.balanced$data$success) # "Perfectly balanced, as all things should be"
+
+# Create model 5
+tree.model5 <- rpart(success~., data.balanced$data)
+tree.model5
+fancyRpartPlot(tree.model5)
+summary(tree.model5)
+
+# Check model 5
+pred <- rep(0, nrow(data.balanced$data))
+pred[predict(tree.model5)[,1] <.5] <- 1
+actual <- data.balanced$data$success
+results <- table(actual, pred)
+
+recall <- results[1] / (results[1] + results[1,2])
+recall
+precision <- results[1] / (results[1] + results[2])
+precision
+# Vastly better results on training data
+
+# Try it with a test train split
+set.seed(42)
+sample <- sample.split(data.encoded, SplitRatio=.80)
+train <- subset(data.encoded, sample==TRUE)
+test <- subset(data.encoded, sample==FALSE)
+
+train.balanced <- ovun.sample(success~., data=train, method="over")
+table(train.balanced$data$success)
+
+tree.model5.train <- rpart(success~., train.balanced$data)
+
+pred <- rep(1, nrow(test))
+pred[predict(tree.model5.train, test)[,1] <.5] <- 0
+actual <- test$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.8640898
+precision <- results[1] / (results[1] + results[2])
+precision # 0.2130341
+# This model seems to have the opposite problem that model 4 had. It seems to to be a bit too aggressive in 
+# predicting 0s.
+
+# Again changing the threshold seems to have little effect.
+roc21 <- actual
+roc22 <- pred
+
+# Plot ROC curves
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
+# seems like the new model might have a little bit more area under the curve. Neither look that good.
