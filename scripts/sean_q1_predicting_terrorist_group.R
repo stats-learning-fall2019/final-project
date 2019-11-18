@@ -27,7 +27,7 @@ gtdb_region_codes = read_csv(gtdb_region_codes_file)
 # were not available prior to this data (e.g., claimed, nperps )
 gtdb_data_after_1997 <- gtdb_data %>% filter(iyear >= 1997)
 
-# leaves 117381
+# leaves 117,381
 nrow(gtdb_data_after_1997)
 
 # Entries with unknown group names
@@ -44,7 +44,7 @@ groups_above_incident_threshold <- known_group_data %>%
   summarize(n=n()) %>% 
   filter(n>=min_n_attacks)
 
-# 64 groups with over 500 attacks
+# 64 groups with over 100 attacks
 nrow(groups_above_incident_threshold)
 
 
@@ -69,6 +69,7 @@ major_groups_in_multiple_regions <- gtdb_data %>%
 
 # 22 groups
 nrow(major_groups_in_multiple_regions)
+
 #**************************************************************************#
 # Complete list of "major multi-regional groups" when min_n_attacks >= 100 #
 #**************************************************************************#
@@ -203,14 +204,8 @@ assert("All incidents have attacktypes with values in range [1,8]",
 # feature: claimed #
 #******************#
 
-# (1) change NAs to -9 (when in doubt assume no claim made)
-data[which(is.na(data$claimed)),]$claimed = -9
-
-# only 385 with -9, so dropping
-data <- data %>% filter(data$claimed != -9)
-
-# 19,852 remaining
-nrow(data)
+# only 385 with NA or -9, so dropping
+data <- data %>% filter(! is.na(data$claimed) & data$claimed != -9)
 
 assert("All incidents have claimed with values in [0,1]",
        nrow(data %>% filter(data$claimed %notin% c(0,1))) == 0)
@@ -296,8 +291,13 @@ assert("All incidents have weaptype1 in [1,11]",
 assert("At least 1 incident for all of the terrorist groups",
        nrow(data %>% select(gname) %>% unique()) == nrow(terrorist_groups))
 
+# 18,055 remaining
+nrow(data)
 
-# update data types
+
+
+
+
 
 
 
