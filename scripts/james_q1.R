@@ -373,3 +373,69 @@ lines(roc(roc51, roc52, direction='<'), col='purple', lwd=1)
 lines(roc(roc61, roc62, direction='<'), col='orange', lwd=1)
 # Virtually the same as the previous model
 
+# Best model seems to be tree.model5
+important.vars <- summary(tree.model5)$variable.importance
+important.vars
+fancyRpartPlot(tree.model5)
+# ishostkid: Hostages (yes/no)
+# attacktype1.1: assassinations
+# extended: lasted more then 24 hours
+# attacktype1.6: kidnapping
+# attacktype1.3: bombing explosions
+# weaptype1.6: Explosives
+# targtype1.1: Business
+# attacktype1.5: HOSTAGE TAKING (BARRICADE INCIDENT)
+# attacktype1.4: Hijaking 
+
+# We can see we have a couple of redundent variables that should be removed.
+data.selected <- data.encoded
+data.selected$country <- NULL # redundent with region
+data.selected$natlty1 <- NULL # redundent with region
+data.selected$property <- NULL
+data.selected$ishostkid <- NULL
+data.selected$weaptype1.6 <- NULL # we already have bombing/explosions
+
+select.balanced <- ovun.sample(success~., data=data.selected, method="over")
+table(select.balanced$data$success)
+
+tree.model6 <- rpart(success~., data=select.balanced$data)
+
+important.vars <- summary(tree.model6)$variable.importance
+important.vars
+fancyRpartPlot(tree.model6)
+
+# Check new model
+pred <- rep(0, nrow(data.balanced$data))
+pred[predict(tree.model5)[,1] <.5] <- 1
+actual <- data.balanced$data$success
+results <- table(actual, pred)
+
+recall <- results[1] / (results[1] + results[1,2])
+recall
+precision <- results[1] / (results[1] + results[2])
+precision
+# Good on training data
+
+# Try it with a test train split
+set.seed(42)
+sample <- sample.split(data.selected, SplitRatio=.80)
+train <- subset(data.selected, sample==TRUE)
+test <- subset(data.selected, sample==FALSE)
+
+train.balanced <- ovun.sample(success~., data=train, method="over")
+table(train.balanced$data$success)
+
+tree.model6.train <- rpart(success~., train.balanced$data)
+
+pred <- rep(1, nrow(test))
+pred[predict(tree.model6.train, test)[,1] <.5] <- 0
+actual <- test$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.6045894
+precision <- results[1] / (results[1] + results[2])
+precision # 0.2031986
+accuracy <- (results[1] + results[2,2]) / nrow(test)
+accuracy # 0.6888043
