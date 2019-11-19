@@ -311,3 +311,65 @@ plot(roc(roc11, roc12, direction='<'), col='blue', lwd=1, main='ROC Curves')
 lines(roc(roc21, roc22, direction='<'), col='red', lwd=1)
 lines(roc(roc31, roc32, direction='<'), col='green', lwd=1)
 lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=1)
+
+## Attempt logistic regression while oversampling
+logistic.model3 <- glm(success~., family="binomial", data=data.balanced$data)
+summary(logistic.model3)
+
+pred <- rep(0, nrow(data.encoded))
+pred[predict(logistic.model3, type="response") >.5] <- 1
+actual <- data.encoded$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.5904083
+precision <- results[1] / (results[1] + results[2])
+precision # 0.1168513
+# Still very low precision
+roc51 <- actual
+roc52 <- pred
+
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=1, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=1)
+lines(roc(roc31, roc32, direction='<'), col='green', lwd=1)
+lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=1)
+lines(roc(roc51, roc52, direction='<'), col='purple', lwd=1)
+# We can see that there's a slight improvement
+
+backselect.2 <- regsubsets(success~., method="backward", data=data.balanced$data, nvmax=ncol(data.balanced$data))
+plot(backselect)
+
+plot(summary(backselect.2)$rsq)
+# Probably about 12 would be best
+summary(backselect.2)$which[13,]
+selected.2 <- colnames(summary(backselect.2)$which)[summary(backselect.2)$which[13,]]
+selected.2 <- c(selected.2[2:14], "success")
+data.selected.2 <- data.balanced$data[,selected.2]
+
+# Try  new model
+logistic.model4 <- glm(success~., family="binomial", data=data.selected.2)
+summary(logistic.model4)
+
+pred <- rep(0, nrow(data.encoded))
+pred[predict(logistic.model4, type="response") >.5] <- 1
+actual <- data.encoded$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.5904083
+precision <- results[1] / (results[1] + results[2])
+precision # 0.1168513
+# Still very low precision
+roc61 <- actual
+roc62 <- pred
+
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=1, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=1)
+lines(roc(roc31, roc32, direction='<'), col='green', lwd=1)
+lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=1)
+lines(roc(roc51, roc52, direction='<'), col='purple', lwd=1)
+lines(roc(roc61, roc62, direction='<'), col='orange', lwd=1)
+# Virtually the same as the previous model
+
