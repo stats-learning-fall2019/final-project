@@ -3,25 +3,22 @@
 # Author: Sean Kugele
 
 source("scripts/utils.R")
+source("scripts/geospatial_utils.R")
+
 load_pkgs(c(
   
   # data manipulation libraries
   "dplyr",
   
   # code assertions and testing utilities
-  "testit"
-
+  "testit",
+  
+  "ggplot2"
 ))
 
 # Load data
 gtdb_data_file = 'data/gtdb_cleansed.csv'
-gtdb_country_codes_file = 'data/gtdb_country_codes.csv'
-gtdb_region_codes_file = 'data/gtdb_region_codes.csv'
-
 gtdb_data = cleanse_data(read_csv(gtdb_data_file), drop_columns = FALSE)
-gtdb_country_codes = read_csv(gtdb_country_codes_file)
-gtdb_region_codes = read_csv(gtdb_region_codes_file)
-
 
 # remove incidents prior to 1997 since several fields
 # were not available prior to this data (e.g., claimed, nperps )
@@ -126,10 +123,28 @@ groups_to_remove = c(
 )
 
 terrorist_groups <- major_groups_in_multiple_regions %>% 
-  filter(! gname %in% groups_to_remove)
+  filter(! gname %in% groups_to_remove) %>% arrange(gname)
 
 # 13 terrorist groups
 nrow(terrorist_groups)
+
+# Add a unique color for plotting purposes
+# random_colors(nrow(terrorist_groups))
+terrorist_groups$color <- c('turquoise1', 
+                            'yellow1', 
+                            'hotpink', 
+                            'red', 
+                            'purple', 
+                            'royalblue1',
+                            'olivedrab1',
+                            'plum',
+                            'seagreen4',
+                            'springgreen',
+                            'lightsalmon1',
+                            'navy',
+                            'orange')
+
+pie(rep(1, nrow(terrorist_groups)), col=terrorist_groups$color)
 
 #********************************#
 # Final list of terrorist groups #
@@ -160,6 +175,7 @@ nrow(incidents)
 
 # candidate list
 data <- incidents %>% select(
+
   # response variable
   gname, 
   
@@ -183,8 +199,13 @@ data <- incidents %>% select(
   success, # categorical
   suicide, # categorical
   targtype1, # categorical
-  weaptype1 # categorical
-  )
+  weaptype1, # categorical
+  
+  # convenience variables
+  N, 
+  latitude,
+  longitude,
+)
 
 #****************************#
 # data value transformations #
@@ -295,7 +316,7 @@ assert("At least 1 incident for all of the terrorist groups",
 nrow(data)
 
 # Correct types of all variables
-data$gname <- as.factor(data$gname)
+data$gname <- as.factor(data$gname, ordered=TRUE)
 data$attacktype1 <- as.factor(data$attacktype1)
 data$claimed <- as.factor(data$claimed)
 data$country <- as.factor(data$country)
@@ -309,7 +330,61 @@ data$suicide <- as.factor(data$suicide)
 data$targtype1 <- as.factor(data$targtype1)
 data$weaptype1 <- as.factor(data$weaptype1)
 
-str(data)
+#**********************#
+# preliminary analysis #
+#**********************#
+incidents_per_group <- data %>% group_by(gname) %>% summarize(n_attacks=n())
+View(incidents_per_group)
+
+incidents_for_groups <- function(df, gname) {
+  return(df[which(df$gname %in% gname),])
+}
+
+geom_points_for_incidents <- function(df, color) {
+  print(color)
+  pts = geom_point(aes(x = longitude, y = latitude, color=color), alpha=0.4, size=2, data = df)
+  return(pts)
+}
+
+geom_points_for_groups <- function(df, gname, color) {
+  incidents <- incidents_for_groups(df, gname)
+  
+  incidents <- incidents[sample(nrow(incidents), size=100),]
+  pts <- geom_points_for_incidents(incidents, color)
+  return(pts)
+}
+
+#---------------------------------------------------#
+# Export World Map With Attacks Per Group as Points #
+#---------------------------------------------------#
+world_map <- get_world_map()
+plot = ggplot(data = world_map) + geom_sf()
+
+for (gname in terrorist_groups$gname) {
+  print(gname)
+  color <- as.character(terrorist_groups[which(terrorist_groups$gname == gname),'color'])
+  plot <- plot + geom_points_for_groups(data, gname, color=color)  
+}
+
+plot <- plot + scale_color_identity(name='Terrorist Groups',
+                                    breaks=terrorist_groups$color,
+                                    labels=terrorist_groups$gname,
+                                    guide = "legend")
+plot <- plot + theme(legend.position = c(0.125, 0.4),
+                     legend.title = element_text(family='Arial', size=12, face='bold'),
+                     legend.text = element_text(family='Arial', size=11, face='bold'),
+                     legend.key.height = unit(0.3, 'in'))
+
+png(filename="presentation/graphics/sean/world_attacks_by_group.png", 
+    type="cairo", # use this for higher quality exports
+    units="in", 
+    width=20, 
+    height=12, 
+    pointsize=12, 
+    res=192)
+plot(plot)
+dev.off()
+
 
 
 # logistic regression
