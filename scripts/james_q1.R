@@ -8,6 +8,10 @@ library(corrplot)
 library(caret)
 library(rpart)
 library(rattle)	
+library(pROC)
+library(caTools)
+library(leaps)
+library(ROSE)
 
 # Load Terrorism Dataset
 data <- read.csv('../data/gtdb_cleansed.csv')
@@ -161,7 +165,6 @@ table(actual, pred)
 # Testing w/ testing data
 
 # Test model 4 on training data
-library(caTools)
 set.seed(42)
 sample <- sample.split(data.encoded, SplitRatio=.80)
 train <- subset(data.encoded, sample==TRUE)
@@ -192,7 +195,6 @@ precision # 0.6459739
 # Plot ROC curve
 roc11 <- actual
 roc12 <- pred
-library(pROC)
 plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curve')
 
 # This model (tree.model4) seems a lot better, recall is a bit low though (if you consider 0s to be positive events).
@@ -200,7 +202,6 @@ plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curve')
 
 # Since we have a fairly large class imbalancy probelm. One possibility we could look into might be undersampling/oversampling.
 # I.e. selecting less/more examples from a class to balance out the dataset
-library(ROSE)
 
 data.balanced <- ovun.sample(success~.,data=data.encoded, method="over")
 table(data.balanced$data$success) # "Perfectly balanced, as all things should be"
@@ -282,9 +283,7 @@ lines(roc(roc31, roc32, direction='<'), col='green', lwd=3)
 # New model doesn't work at all
 
 # Use backwards selection to find a better model
-library("leaps")
-#backselect <- regsubsets(Sales~.+TV*Radio*Newspaper-X, method='backward', data=adv, nvmax=28)
-#plot(backselect)
+
 backselect <- regsubsets(success~., method='backward', data=data.encoded, nvmax=30)
 plot(backselect)
 summary(backselect)
@@ -308,7 +307,7 @@ roc41 <- actual
 roc42 <- pred
 
 # Plot ROC curves
-plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
-lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
-lines(roc(roc31, roc32, direction='<'), col='green', lwd=3)
-lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=3)
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=1, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=1)
+lines(roc(roc31, roc32, direction='<'), col='green', lwd=1)
+lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=1)
