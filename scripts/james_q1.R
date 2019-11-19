@@ -8,6 +8,10 @@ library(corrplot)
 library(caret)
 library(rpart)
 library(rattle)	
+library(pROC)
+library(caTools)
+library(leaps)
+library(ROSE)
 
 # Load Terrorism Dataset
 data <- read.csv('../data/gtdb_cleansed.csv')
@@ -161,7 +165,6 @@ table(actual, pred)
 # Testing w/ testing data
 
 # Test model 4 on training data
-library(caTools)
 set.seed(42)
 sample <- sample.split(data.encoded, SplitRatio=.80)
 train <- subset(data.encoded, sample==TRUE)
@@ -192,7 +195,6 @@ precision # 0.6459739
 # Plot ROC curve
 roc11 <- actual
 roc12 <- pred
-library(pROC)
 plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curve')
 
 # This model (tree.model4) seems a lot better, recall is a bit low though (if you consider 0s to be positive events).
@@ -200,7 +202,6 @@ plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curve')
 
 # Since we have a fairly large class imbalancy probelm. One possibility we could look into might be undersampling/oversampling.
 # I.e. selecting less/more examples from a class to balance out the dataset
-library(ROSE)
 
 data.balanced <- ovun.sample(success~.,data=data.encoded, method="over")
 table(data.balanced$data$success) # "Perfectly balanced, as all things should be"
@@ -255,3 +256,58 @@ roc22 <- pred
 plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
 lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
 # seems like the new model might have a little bit more area under the curve. Neither look that good.
+
+
+
+## Let's try a completely different approach. Logistic Regression
+logistic.model1 <- glm(success~., family="binomial",data.encoded)
+summary(logistic.model1)
+
+pred <- rep(0, nrow(data.encoded))
+pred[predict(logistic.model1, type="response") >.5] <- 1
+actual <- data.encoded$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.02058926
+precision <- results[1] / (results[1] + results[2])
+precision # 0.1019753
+
+roc31 <- actual
+roc32 <- pred
+# Plot ROC curves
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
+lines(roc(roc31, roc32, direction='<'), col='green', lwd=3)
+# New model doesn't work at all
+
+# Use backwards selection to find a better model
+
+backselect <- regsubsets(success~., method='backward', data=data.encoded, nvmax=30)
+plot(backselect)
+summary(backselect)
+selected <- c("property", "ishostkid", "weaptype1.6", "targtype1.17", "targtype1.15", "targtype1.14", "targtype1.4", "targtype1.3","targtype1.1",
+              "attacktype1.3", "attacktype1.2", "success")
+data.selected <- data.encoded[,selected]
+logistic.model2 <- glm(success~., family = "binomial", data=data.selected)
+summary(logistic.model2)
+
+pred <- rep(0, nrow(data.encoded))
+pred[predict(logistic.model2, type="response") >.5] <- 1
+actual <- data.encoded$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.05748043
+precision <- results[1] / (results[1] + results[2])
+precision # 0.1206319
+roc41 <- actual
+roc42 <- pred
+
+# Plot ROC curves
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=1, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=1)
+lines(roc(roc31, roc32, direction='<'), col='green', lwd=1)
+lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=1)
