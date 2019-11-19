@@ -2,6 +2,9 @@
 #
 # Author: Sean Kugele
 
+# clear out environment and any library includes
+rm(list = ls())
+
 source("scripts/utils.R")
 source("scripts/geospatial_utils.R")
 
@@ -144,7 +147,8 @@ terrorist_groups$color <- c('turquoise1',
                             'navy',
                             'orange')
 
-pie(rep(1, nrow(terrorist_groups)), col=terrorist_groups$color)
+# uncomment to see color assignments
+# pie(rep(1, nrow(terrorist_groups)), col=terrorist_groups$color)
 
 #********************************#
 # Final list of terrorist groups #
@@ -183,6 +187,7 @@ data <- incidents %>% select(
   attacktype1, # categorical
   claimed, # categorical
   country, # categorical
+  region, # categorical
   extended, # categorical
   iyear, # numerical
   nkill, # numerical
@@ -237,6 +242,13 @@ assert("All incidents have claimed with values in [0,1]",
 
 assert("All incidents have country with values in [4,1004]",
        nrow(data %>% filter(data$country %notin% seq(4, 1004))) == 0)
+
+#*****************#
+# feature: region #
+#*****************#
+
+assert("All incidents have region with values in [1,12]",
+       nrow(data %>% filter(data$region %notin% seq(12))) == 0)
 
 #*******************#
 # feature: extended #
@@ -316,10 +328,11 @@ assert("At least 1 incident for all of the terrorist groups",
 nrow(data)
 
 # Correct types of all variables
-data$gname <- as.factor(data$gname, ordered=TRUE)
+data$gname <- as.factor(data$gname)
 data$attacktype1 <- as.factor(data$attacktype1)
 data$claimed <- as.factor(data$claimed)
 data$country <- as.factor(data$country)
+data$region <- as.factor(data$region)
 data$extended <- as.factor(data$extended)
 data$iyear <- as.integer(data$iyear)
 data$nkill <- as.integer(data$nkill)
@@ -357,56 +370,101 @@ geom_points_for_groups <- function(df, gname, color) {
 #---------------------------------------------------#
 # Export World Map With Attacks Per Group as Points #
 #---------------------------------------------------#
-world_map <- get_world_map()
-plot = ggplot(data = world_map) + geom_sf()
+exporting_graphics = FALSE
 
-for (gname in terrorist_groups$gname) {
-  print(gname)
-  color <- as.character(terrorist_groups[which(terrorist_groups$gname == gname),'color'])
-  plot <- plot + geom_points_for_groups(data, gname, color=color)  
+if (exporting_graphics) {
+  world_map <- get_world_map()
+  plot = ggplot(data = world_map) + geom_sf()
+  
+  for (gname in terrorist_groups$gname) {
+    print(gname)
+    color <- as.character(terrorist_groups[which(terrorist_groups$gname == gname),'color'])
+    plot <- plot + geom_points_for_groups(data, gname, color=color)  
+  }
+  
+  plot <- plot + scale_color_identity(name='Terrorist Groups',
+                                      breaks=terrorist_groups$color,
+                                      labels=terrorist_groups$gname,
+                                      guide = "legend")
+  plot <- plot + theme(legend.position = c(0.125, 0.4),
+                       legend.title = element_text(family='Arial', size=12, face='bold'),
+                       legend.text = element_text(family='Arial', size=11, face='bold'),
+                       legend.key.height = unit(0.3, 'in'))
+  
+  png(filename="presentation/graphics/sean/world_attacks_by_group.png", 
+      type="cairo", # use this for higher quality exports
+      units="in", 
+      width=20, 
+      height=12, 
+      pointsize=12, 
+      res=192)
+  plot(plot)
+  dev.off()
 }
 
-plot <- plot + scale_color_identity(name='Terrorist Groups',
-                                    breaks=terrorist_groups$color,
-                                    labels=terrorist_groups$gname,
-                                    guide = "legend")
-plot <- plot + theme(legend.position = c(0.125, 0.4),
-                     legend.title = element_text(family='Arial', size=12, face='bold'),
-                     legend.text = element_text(family='Arial', size=11, face='bold'),
-                     legend.key.height = unit(0.3, 'in'))
 
-png(filename="presentation/graphics/sean/world_attacks_by_group.png", 
-    type="cairo", # use this for higher quality exports
-    units="in", 
-    width=20, 
-    height=12, 
-    pointsize=12, 
-    res=192)
-plot(plot)
-dev.off()
+#----------------#
+# Model Creation #
+#----------------#
+
+# split data into training and test sets
+
+# 14,444
+data_subset <- data.frame()
+
+for (gname in terrorist_groups$gname) {
+  selection <- data[sample(which(data$gname == gname), size=100),]
+  data_subset <- rbind(data_subset, selection)  
+}
+
+
+training_data <- data_subset[sample(nrow(data_subset), size=nrow(data_subset) * 0.8),]
+testing_data <- data_subset %>% filter(N %notin% training_data$N)
+
+nrow(training_data)
+nrow(testing_data)
+
+# model_formula <- gname~attacktype1 + claimed + extended + iyear + nkill + nwound +
+#   propextent +  region +  success +  suicide +  targtype1 +  weaptype1 
 
 
 
 # logistic regression
 
 
+# TODO:
+
+# Linear Discriminant Analysis
+library(MASS)
+
+lda.formula <- gname~attacktype1 + claimed + extended + iyear + nkill + nwound +
+  propextent +  success +  suicide +  targtype1
+
+lda.fit=lda(lda.formula, data=training_data)
+lda.fit
+# plot(lda.fit)
+lda.pred=predict(lda.fit, testing_data)
+names(lda.pred)
+table(lda.pred$class, testing_data$gname)
+mean(lda.pred$class == testing_data$gname)
 
 
-# lda
-
-
-
-
-# qda
-
-
-
+# Quadratic Discriminant Analysis
+qda.formula <- gname~claimed + extended + nkill + nwound + success + iyear
+qda.fit=qda(qda.formula, data=training_data)
+qda.fit
+qda.class=predict(qda.fit, testing_data)$class
+table(qda.class, testing_data$gname)
+mean(qda.class==testing_data$gname)
 
 # decision trees
+library(tree)
+library(randomForest)
 
-
-
-
+tree.formula <- gname~attacktype1 + claimed + extended + iyear + nkill + nwound +
+  propextent +  success +  suicide +  targtype1 + region
+tree.fit=tree(tree.formula, training_data)
+summary(tree.fit)
 
 # random forests
 
