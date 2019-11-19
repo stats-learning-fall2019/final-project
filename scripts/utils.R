@@ -3,6 +3,18 @@
 #*********#
 `%notin%` <- Negate(`%in%`)
 
+#*****************#
+# SUPPORTING DATA #
+#*****************#
+if (! exists('country_codes')) {
+  library(readr)
+  country_codes = read_csv('data/gtdb_country_codes.csv')
+}
+
+if (! exists('region_codes')) {
+  region_codes = read_csv('data/gtdb_region_codes.csv')
+}
+
 #***********#
 # FUNCTIONS #
 #***********#
@@ -98,3 +110,17 @@ cleanse_data <- function(data, drop_columns = FALSE) {
   return(data)
 }
 
+random_colors <- function(n) {
+  load_pkgs(c('RColorBrewer'))
+  
+  qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+  col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+  colors <- sample(col_vector, n)
+  return(colors)
+}
+
+load_windows_fonts <- function() {
+  load_pkgs(c('extrafont'))
+  font_import()
+  loadfonts(device = "win")
+}

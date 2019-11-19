@@ -12,8 +12,21 @@ load_pkgs(c(
   "ggplot2"
 ))
 
-gtdb_country_codes = read_csv('data/gtdb_country_codes.csv')
-gtdb_region_codes = read_csv('data/gtdb_region_codes.csv')
+get_world_map <- function() {
+  
+  load_pkgs(c("rnaturalearth", "rnaturalearthdata"))
+  
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+  
+  # correct several country names to align with GTDB -- note that there are 
+  # several countries that have no correspondence due to historical reasons 
+  # (e.g., Soviet Union)
+  world[grep('.*United States.*', world$sovereignt),]$sovereignt = 'United States'
+  world[grep('.*Bahamas.*', world$sovereignt),]$sovereignt = 'Bahamas'
+  world[grep('.*Vatican.*', world$sovereignt),]$sovereignt = 'Vatican City'  
+  
+  return(world)
+}
 
 gen_map_with_points <- function(map, data) {
   pts = geom_point(aes(x = longitude, y = latitude, color='red'), 
@@ -22,8 +35,12 @@ gen_map_with_points <- function(map, data) {
 }
 
 gen_map_for_region_with_points <- function(regional_map, region_name, df) {
+  if (! exists('region_codes')) {
+    region_codes = read_csv('data/gtdb_region_codes.csv')
+  }
+  
   data <- df %>% 
-    filter(region == map_name_to_code(region_name, gtdb_region_codes)) %>%
+    filter(region == map_name_to_code(region_name, region_codes)) %>%
     select(longitude, latitude)
   
   p <- gen_map_with_points(regional_map, data)
@@ -33,37 +50,4 @@ gen_map_for_region_with_points <- function(regional_map, region_name, df) {
     scale_fill_gradient(low = "orange", high = "red")
   
   return(p)
-}
-
-
-gen_world_map_with_density <- function(df, pts=TRUE, density=TRUE) {
-  
-  world_map <- borders("world", colour="gray50", fill="gray50") 
-  plot = ggplot(df, aes(x = longitude, y = latitude)) + world_map + coord_equal()
-  
-  if (pts) {
-    geom_pts = geom_point(aes(x = longitude, y = latitude, color='red'), 
-                          data = df, show.legend = FALSE)
-    
-    plot <- plot + geom_pts
-  }
-  
-  if (density) {
-    density = stat_density2d(
-      aes(x = longitude, 
-          y = latitude, 
-          fill = ..level.., 
-          alpha=0.99),
-      size = 0.1, 
-      bins = 40, 
-      data = df, 
-      geom = "polygon", 
-      show.legend = FALSE)
-    
-    plot <- plot + density
-    plot <- plot + scale_fill_gradient(low = "yellow", high = "red")
-    plot <- plot + theme(legend.position = 'none')
-  }
-  
-  return(plot)
 }
