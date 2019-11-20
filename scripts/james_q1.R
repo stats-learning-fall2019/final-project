@@ -439,3 +439,30 @@ precision <- results[1] / (results[1] + results[2])
 precision # 0.2031986
 accuracy <- (results[1] + results[2,2]) / nrow(test)
 accuracy # 0.6888043
+
+# If seems fairly clear that the current model is overfitting the data. Pruning seems like the best option
+fancyRpartPlot(tree.model6.train)
+pruned <- prune(tree.model6.train, cp=.02)
+fancyRpartPlot(pruned)
+
+pred <- rep(1, nrow(test))
+pred[predict(pruned, test)[,1] <.6] <- 0
+actual <- test$success
+results <- table(actual, pred)
+results
+
+recall <- results[1] / (results[1] + results[1,2])
+recall # 0.6045894
+precision <- results[1] / (results[1] + results[2])
+precision # 0.2031986
+accuracy <- (results[1] + results[2,2]) / nrow(test)
+accuracy # 0.6888043
+roc71 <- actual
+roc72 <- pred
+
+plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
+lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
+lines(roc(roc71, predict(pruned, test)[,1], direction='<'), col='green', lwd=3)
+lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=3)
+lines(roc(roc51, roc52, direction='<'), col='purple', lwd=3)
+lines(roc(roc61, roc62, direction='<'), col='orange', lwd=3)
