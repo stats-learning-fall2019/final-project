@@ -8,6 +8,13 @@ rm(list = ls())
 source("scripts/utils.R")
 source("scripts/geospatial_utils.R")
 
+# prevent clobbering of dplyr's select function
+conflictRules('MASS', mask.ok = FALSE, exclude=c('select'))
+
+# prevent clobbering of dplyr's combine function and ggplot2's margin function
+conflictRules('randomForest', mask.ok = FALSE, exclude=c('combine', 'margin'))
+
+# load and optionally download packages
 load_pkgs(c(
   
   # data manipulation libraries
@@ -25,7 +32,10 @@ load_pkgs(c(
   "tree",
   
   # bagging and random forests
-  "randomForest"
+  "randomForest",
+  
+  # support vector machines
+  "e1071"
 ))
 
 # Load data
@@ -227,7 +237,7 @@ data <- incidents %>% select(
   property, # categorical
   propextent, # categorical
   
-  ransom, # categorical
+  # ransom, # categorical
   claimed, # categorical
 
   success, # categorical
@@ -640,18 +650,15 @@ if ('property' %in% colnames(data)) {
 
 if ('ransom' %in% colnames(data)) {
   
-  # # dropping NA and -9 ("unknown")
-  # data <- data %>% filter(! is.na(ransom) & ! ransom == -9)
-  # 
-  # assert("All incidents have ransom in [0,1]",
-  #        nrow(data %>% filter(ransom %notin% c(0,1))) == 0)
+  # dropping NA and -9 ("unknown")
+  data <- data %>% filter(! is.na(ransom) & ! ransom == -9)
+
+  assert("All incidents have ransom in [0,1]",
+         nrow(data %>% filter(ransom %notin% c(0,1))) == 0)
   
   data$ransom <- as.factor(data$ransom)
   cat('nrows after ransom: ', nrow(data))  
 }
-
-
-
 
 #**********************#
 # preliminary analysis #
@@ -664,8 +671,8 @@ incidents_for_groups <- function(df, gname) {
 }
 
 # Verify that we have at least 100 attacks for any of the accepted terrorist groups
-# assert("At least 100 incidents for all of the accepted terrorist groups",
-#        nrow(incidents_per_group %>% select(n_attacks) %>% filter(n_attacks >= 100)) == nrow(terrorist_groups))
+assert("At least 100 incidents for all of the accepted terrorist groups",
+       nrow(incidents_per_group %>% select(n_attacks) %>% filter(n_attacks >= 50)) == nrow(terrorist_groups))
 
 
 geom_points_for_incidents <- function(df, color) {
@@ -743,7 +750,9 @@ nrow(testing_data)
 # View(check)
 
 
-# Linear Discriminant Analysis
+#******************************#
+# Linear Discriminant Analysis #
+#******************************#
 
 # colnames(training_data)
 lda.formula <- gname~nwound + nkill + nkillter + nperps + claimed + success + multiple + extended + suicide + targtype1
@@ -755,7 +764,9 @@ table(lda.pred$class, testing_data$gname)
 mean(lda.pred$class == testing_data$gname)
 
 
-# Quadratic Discriminant Analysis
+#*********************************#
+# Quadratic Discriminant Analysis #
+#*********************************#
 qda.formula <- gname~claimed + nkill + nwound + multiple + nperps + nkillter + property
 qda.fit=qda(qda.formula, data=training_data)
 qda.fit
@@ -763,7 +774,9 @@ qda.class=predict(qda.fit, testing_data)$class
 table(qda.class, testing_data$gname)
 mean(qda.class==testing_data$gname)
 
-# decision trees
+#***************#
+# Decision Tree #
+#***************#
 tree.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
 tree.fit=tree(tree.formula, training_data)
 summary(tree.fit)
@@ -780,16 +793,18 @@ comp$pred_id <- sapply(comp$predicted, map_group_to_id)
 comp$actual_id <- sapply(comp$actual, map_group_to_id)
 
 table(comp$pred_id, comp$actual_id)
+mean(comp$pred_id == comp$actual_id)
 
-
-# random forests
+#****************#
+# Random Forests #
+#****************#
 colnames(training_data)
 randforest.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
 
 set.seed(1)
-rf.fit=randomForest(randforest.formula, data=training_data, mtry=3, ntree=50, importance=TRUE)
+rf.fit=randomForest(randforest.formula, data=training_data, mtry=4, ntree=50, importance=TRUE)
 rf.pred=predict(rf.fit, newdata = testing_data, type = "class")
-mean(rf.pred == testing_data$gname)
+
 importance(rf.fit)
 varImpPlot(rf.fit)
 
@@ -803,10 +818,59 @@ comp$pred_id <- sapply(comp$predicted, map_group_to_id)
 comp$actual_id <- sapply(comp$actual, map_group_to_id)
 
 table(comp$pred_id, comp$actual_id)
+mean(comp$pred_id == comp$actual_id)
 
+#*************************#
+# Support Vector Machines #
+#*************************#
 
-# svm
+# basic (non-tuned) linear model
+#
+#   note: I tried polynomial, radial basis, and sigmoid kernel functions, but linear gave the best results
+svm.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
+svm.fit=svm(svm.formula, data=training_data, kernel="linear", cost=1, scale=FALSE)
+svm.pred = predict(svm.fit, newdata = testing_data)
 
+comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
+colnames(comp) <- c('predicted', 'actual')
+
+comp$predicted <- svm.pred
+comp$actual <- testing_data$gname
+
+comp$pred_id <- sapply(comp$predicted, map_group_to_id)
+comp$actual_id <- sapply(comp$actual, map_group_to_id)
+
+table(comp$pred_id, comp$actual_id)
+mean(comp$pred_id == comp$actual_id)
+
+# tuning cost to find best model
+#
+#   cost=10 gave best results on training data, but it seems to be overfitting
+set.seed(1)
+tune.out=tune(method=svm, 
+              train.x=svm.formula, 
+              data=training_data, 
+              kernel="linear", 
+              ranges=list(cost=c(0.001, 0.01, 0.1, 1,5,10,100)))
+
+summary(tune.out)
+
+svm.best.fit=tune.out$best.model
+summary(svm.best.fit)
+
+svm.best.pred = predict(svm.best.fit, newdata = testing_data)
+
+comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
+colnames(comp) <- c('predicted', 'actual')
+
+comp$predicted <- svm.best.pred
+comp$actual <- testing_data$gname
+
+comp$pred_id <- sapply(comp$predicted, map_group_to_id)
+comp$actual_id <- sapply(comp$actual, map_group_to_id)
+
+table(comp$pred_id, comp$actual_id)
+mean(comp$pred_id == comp$actual_id)
 
 
 # TODO: ADD "OTHER" TERRORIST GROUP WITH RANDOMLY SAMPLED INCIDENTS FROM OTHER GROUPS
