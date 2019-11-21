@@ -473,12 +473,10 @@ for (i in 4:ncol(select.balanced$data)) {
     select.balanced$data[,colnames(select.balanced$data)[i]] <- as.factor(select.balanced$data[,colnames(select.balanced$data)[i]])
   }
 }
-
-
-tree.model6 <- rpart(success~., data=select.balanced$data)
-
-important.vars <- summary(tree.model6)$variable.importance
-important.vars
-fancyRpartPlot(tree.model6)
-
 # Change column names for graphic 
+colnames(select.balanced$data)[colnames(select.balanced$data)=="attacktype1.1"] <- "attacktype1.Assassination"
+colnames(select.balanced$data)[colnames(select.balanced$data)=="attacktype1.6"] <- "attacktype1.Kidnapping"
+
+# Create Graphic
+tree.model6 <- rpart(success~., data=select.balanced$data)
+fancyRpartPlot(tree.model6, sub='', type=2)
