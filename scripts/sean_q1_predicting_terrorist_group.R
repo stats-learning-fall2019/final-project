@@ -16,12 +16,24 @@ load_pkgs(c(
   # code assertions and testing utilities
   "testit",
   
-  "ggplot2"
+  "ggplot2",
+  
+  # lda and qda
+  "MASS",
+  
+  # decision trees
+  "tree",
+  
+  # bagging and random forests
+  "randomForest"
 ))
 
 # Load data
 gtdb_data_file = 'data/gtdb_cleansed.csv'
 gtdb_data = cleanse_data(read_csv(gtdb_data_file), drop_columns = FALSE)
+
+n <- nrow(gtdb_data)
+p <- ncol(gtdb_data)
 
 # remove incidents prior to 1997 since several fields
 # were not available prior to this data (e.g., claimed, nperps )
@@ -128,6 +140,13 @@ groups_to_remove = c(
 terrorist_groups <- major_groups_in_multiple_regions %>% 
   filter(! gname %in% groups_to_remove) %>% arrange(gname)
 
+# letter identifier used for confusion matrices, etc.
+terrorist_groups$id = LETTERS[1:nrow(terrorist_groups)]
+
+map_group_to_id <- function(gname) {
+  return(as.character(terrorist_groups[which(terrorist_groups$gname == gname),'id']))
+}
+
 # 13 terrorist groups
 nrow(terrorist_groups)
 
@@ -183,165 +202,456 @@ data <- incidents %>% select(
   # response variable
   gname, 
   
-  # features
-  attacktype1, # categorical
-  claimed, # categorical
-  country, # categorical
-  region, # categorical
-  extended, # categorical
-  iyear, # numerical
-  nkill, # numerical
-  
-  # too many NA and -99 values, so removing for now
-  # nperps, # numerical
-  
-  nwound, # numerical
-  propextent, # categorical
-  
-  # too many NA and -9 (unknown) values, so removing for now
-  # ransom, # categorical
-  
-  success, # categorical
-  suicide, # categorical
-  targtype1, # categorical
-  weaptype1, # categorical
-  
   # convenience variables
   N, 
-  latitude,
-  longitude,
+
+  iday, # numerical
+  imonth, # numerical
+  iyear, # numerical
+
+  latitude, # numerical
+  longitude, # numerical
+  
+  # country, # categorical
+  region, # categorical
+  
+  # too many NA and -99 values, so removing for now
+  nperps, # numerical
+  
+  nwound, # numerical
+  nkill, # numerical
+  nkillter, # numerical
+  nperps, # numerical
+  # nperpcap, # numerical
+
+  property, # categorical
+  propextent, # categorical
+  
+  ransom, # categorical
+  claimed, # categorical
+
+  success, # categorical
+  suicide, # categorical
+  
+  multiple, # categorical
+  extended, # categorical
+  
+  attacktype1, # categorical
+  # natlty1, # categorical
+  
+  targtype1, # categorical
+  # targsubtype1, # categorical
+  
+  weaptype1, # categorical
+  # weapsubtype1, # categorical
+
 )
 
-#****************************#
+#----------------------------#
 # data value transformations #
-#****************************#
+#----------------------------#
+
+#*****************#
+# response: gname #
+#*****************#
+
+data$gname <- as.factor(data$gname)
+
+#*******************#
+# feature: latitude #
+#*******************#
+
+data <- data %>% filter(! is.na(latitude))
+
+#********************#
+# feature: longitude #
+#********************#
+
+data <- data %>% filter(! is.na(longitude))
+
+#***************#
+# feature: iday #
+#***************#
+
+# From GTDB cookbook:
+#   For attacks that took place between 1970 and 2011, if the exact day of the 
+#   event is unknown, this is recorded as “0.” For attacks that took place after 2011, 
+#   if the exact day of the event is unknown, this is recorded as the midpoint of the 
+#   range of possible dates reported in source materials and the full range is recorded 
+#   in the Approximate Date (approxdate) field below.
+
+if ('iday' %in% colnames(data)) {
+
+  # remove 0 (unknown) values
+  data <- data %>% filter(iday != 0)
+  
+  assert("All incidents have iday with values in range [1,31]",
+         nrow(data %>% filter(data$iday %notin% seq(31))) == 0)
+  
+  data$iday <- as.integer(data$iday)
+  cat('nrows after iday: ', nrow(data))
+}
+
+#*****************#
+# feature: imonth #
+#*****************#
+
+cat('before: ', nrow(data))
+if ('imonth' %in% colnames(data)) {
+  # From GTDB cookbook:
+  #   For attacks that took place between 1970 and 2011, if the exact month of the 
+  #   event is unknown, this is recorded as “0.” For attacks that took place after 2011, 
+  #   if the exact month of the event is unknown, this is recorded as the midpoint of the 
+  #   range of possible dates reported in source materials and the full range is recorded 
+  #   in the Approximate Date (approxdate) field below.
+  
+  # remove 0 (unknown) values
+  data <- data %>% filter(imonth != 0)
+  
+  assert("All incidents have imonth with values in range [1,12]",
+         nrow(data %>% filter(data$imonth %notin% seq(12))) == 0)
+  
+  data$imonth <- as.integer(data$imonth)
+  cat('nrows after imonth: ', nrow(data))  
+}
+
+#****************#
+# feature: iyear #
+#****************#
+if ('iyear' %in% colnames(data)) {
+  
+  assert("All incidents have iyear in {1970..1992, 1994..2017} ",
+         nrow(data %>% filter(iyear %notin% c(1970:1992, 1994:2017))) == 0)
+  
+  data$iyear <- as.integer(data$iyear)
+  cat('nrows after iyear: ', nrow(data))  
+}
 
 #**********************#
 # feature: attacktype1 #
 #**********************#
-
-# remove rows with unknown attacktype1 (e.g., 9)
-data <- data %>% filter(data$attacktype1 != 9)
-
-assert("All incidents have attacktypes with values in range [1,8]",
-  nrow(data %>% filter(data$attacktype1 %notin% seq(8))) == 0)
+if ('attacktype1' %in% colnames(data)) {
+  
+  # remove rows with unknown attacktype1 (e.g., 9)
+  data <- data %>% filter(data$attacktype1 != 9)
+  
+  assert("All incidents have attacktypes with values in range [1,8]",
+    nrow(data %>% filter(data$attacktype1 %notin% seq(8))) == 0)
+  
+  
+  data$attacktype1 <- as.factor(data$attacktype1)
+  cat('nrows after attacktype1: ', nrow(data))  
+}
 
 #******************#
 # feature: claimed #
 #******************#
 
-# only 385 with NA or -9, so dropping
-data <- data %>% filter(! is.na(data$claimed) & data$claimed != -9)
+if ('claimed' %in% colnames(data)) {
 
-assert("All incidents have claimed with values in [0,1]",
-       nrow(data %>% filter(data$claimed %notin% c(0,1))) == 0)
+  # transform -9 (unknown?) to 0 ("no")
+  data <- data %>% mutate(claimed = ifelse(claimed == -9, 0, claimed))
+  
+  # dropping NA or -9 (unknown)
+  data <- data %>% filter(! is.na(data$claimed) & data$claimed != -9)
+  
+  assert("All incidents have claimed with values in [0,1]",
+         nrow(data %>% filter(data$claimed %notin% c(0,1))) == 0)
+  
+  data$claimed <- as.factor(data$claimed)
+  cat('nrows after claimed: ', nrow(data))  
+}
 
 #******************#
 # feature: country #
 #******************#
 
-assert("All incidents have country with values in [4,1004]",
-       nrow(data %>% filter(data$country %notin% seq(4, 1004))) == 0)
+if ('country' %in% colnames(data)) {
+  
+  assert("All incidents have country with values in [4,1004]",
+         nrow(data %>% filter(data$country %notin% seq(4, 1004))) == 0)
+
+  data$country <- as.factor(data$country)
+  cat('nrows after country: ', nrow(data))  
+}
 
 #*****************#
 # feature: region #
 #*****************#
 
-assert("All incidents have region with values in [1,12]",
-       nrow(data %>% filter(data$region %notin% seq(12))) == 0)
+if ('region' %in% colnames(data)) {
+  
+  assert("All incidents have region with values in [1,12]",
+         nrow(data %>% filter(data$region %notin% seq(12))) == 0)
+  
+  data$region <- as.factor(data$region)
+  cat('nrows after region: ', nrow(data))  
+}
 
 #*******************#
 # feature: extended #
 #*******************#
-assert("All incidents have extended with values in [0,1]",
-       nrow(data %>% filter(data$extended %notin% c(0,1))) == 0)
+
+if ('extended' %in% colnames(data)) {
+  
+  assert("All incidents have extended with values in [0,1]",
+         nrow(data %>% filter(data$extended %notin% c(0,1))) == 0)
+  
+  data$extended <- as.factor(data$extended)
+  cat('nrows after extended: ', nrow(data))  
+}
 
 #****************#
 # feature: nkill #
 #****************#
 
-# change NA to 0 (assume no kills if not reported)
-data[which(is.na(data$nkill)),]$nkill = 0
+if ('nkill' %in% colnames(data)) {
+  
+  # change NA to 0 (assume no kills if not reported)
+  data[which(is.na(data$nkill)),]$nkill = 0
+  
+  assert("All incidents have nkill >= 0 and no NAs",
+         nrow(data %>% filter(is.na(nkill) | nkill < 0)) == 0)
+  
+  data$nkill <- as.integer(data$nkill)
+  cat('nrows after nkill: ', nrow(data))  
+}
 
-assert("All incidents have nkill >= 0 and no NAs",
-       nrow(data %>% filter(is.na(nkill) | nkill < 0)) == 0)
+#*******************#
+# feature: nkillter #
+#*******************#
+
+if ('nkillter' %in% colnames(data)) {
+  
+  # change NA to 0 (assume no kills if not reported)
+  data[which(is.na(data$nkillter)),]$nkillter = 0
+  
+  assert("All incidents have nkillter >= 0 and no NAs",
+         nrow(data %>% filter(is.na(nkillter) | nkillter < 0)) == 0)
+
+  data$nkillter <- as.integer(data$nkillter)
+  cat('nrows after nkillter: ', nrow(data))  
+}
+
+#*****************#
+# feature: nperps #
+#*****************#
+
+if ('nperps' %in% colnames(data)) {
+  
+  # change NA and -99 to 0 (assume no captures if not reported)
+  data <- data %>% mutate(nperps = ifelse(is.na(nperps) | nperps == -99, 0, nperps))
+  
+  assert("All incidents have nperpcap >= 0 and no NAs",
+         nrow(data %>% filter(is.na(nperps) | nperps < 0)) == 0)
+  
+  data$nperps <- as.integer(data$nperps) 
+  cat('nrows after nperps: ', nrow(data))  
+}
+
+#*******************#
+# feature: nperpcap #
+#*******************#
+
+if ('nperpcap' %in% colnames(data)) {
+  
+  # change NA and -99 to 0 (assume no captures if not reported)
+  data <- data %>% mutate(nperpcap = ifelse(is.na(nperpcap) | nperpcap == -99, 0, nperpcap))
+
+  assert("All incidents have nperpcap >= 0 and no NAs",
+         nrow(data %>% filter(is.na(nperpcap) | nperpcap < 0)) == 0)
+
+  data$nperpcap <- as.integer(data$nperpcap) 
+  cat('nrows after nperpcap: ', nrow(data))  
+}
 
 #*****************#
 # feature: nwound #
 #*****************#
-# change NA to 0 (assume none wounded if not reported)
-data[which(is.na(data$nwound)),]$nwound = 0
 
-assert("All incidents have nkill >= 0 and no NAs",
-       nrow(data %>% filter(is.na(nwound) | nwound < 0)) == 0)
+if ('nwound' %in% colnames(data)) {
+  
+  # change NA to 0 (assume none wounded if not reported)
+  data[which(is.na(data$nwound)),]$nwound = 0
+  
+  assert("All incidents have nkill >= 0 and no NAs",
+         nrow(data %>% filter(is.na(nwound) | nwound < 0)) == 0)
+  
+  data$nwound <- as.integer(data$nwound)
+  cat('nrows after nwound: ', nrow(data))  
+}
 
 #*********************#
 # feature: propextent #
 #*********************#
 
-# change NAs and 4s (unknown) to 3s (minor)
-data[which(is.na(data$propextent) | data$propextent == 4),]$propextent = 3
-
-assert("All incidents have propextent in [1,3]",
-       nrow(data %>% filter(propextent %notin% seq(3))) == 0)
+if ('propextent' %in% colnames(data)) {
+  
+  # change NAs and 4s (unknown) to 3s (minor)
+  data[which(is.na(data$propextent) | data$propextent == 4),]$propextent = 3
+  
+  assert("All incidents have propextent in [1,3]",
+         nrow(data %>% filter(propextent %notin% seq(3))) == 0)
+  
+  data$propextent <- as.factor(data$propextent)
+  cat('nrows after propextent: ', nrow(data))  
+}
 
 #******************#
 # feature: success #
 #******************#
-assert("All incidents have success in [0,1]",
-       nrow(data %>% filter(success %notin% c(0,1))) == 0)
 
+if ('success' %in% colnames(data)) {
+  
+  assert("All incidents have success in [0,1]",
+         nrow(data %>% filter(success %notin% c(0,1))) == 0)
+
+  data$success <- as.factor(data$success)
+  cat('nrows after success: ', nrow(data))  
+}
 
 #******************#
 # feature: suicide #
 #******************#
-assert("All incidents have suicide in [0,1]",
-       nrow(data %>% filter(suicide %notin% c(0,1))) == 0)
 
+if ('suicide' %in% colnames(data)) {
+  
+  assert("All incidents have suicide in [0,1]",
+         nrow(data %>% filter(suicide %notin% c(0,1))) == 0)
+
+  data$suicide <- as.factor(data$suicide)
+  cat('nrows after suicide: ', nrow(data))  
+}
 
 #********************#
 # feature: targtype1 #
 #********************#
 
-# removed 13 (other) and 20 (unknown)
-data <- data %>% filter(targtype1 %notin% c(13,20))
+if ('targtype1' %in% colnames(data)) {
+  
+  # removed 13 (other) and 20 (unknown)
+  data <- data %>% filter(targtype1 %notin% c(13,20))
+  
+  assert("All incidents have targtype1 in {1..12, 14..19, 21, 22} ",
+         nrow(data %>% filter(targtype1 %notin% c(1:12, 14:19, 21:22))) == 0)
+  
+  data$targtype1 <- as.factor(data$targtype1)
+  cat('nrows after targtype1: ', nrow(data))  
+}
 
-assert("All incidents have targtype1 in {1..12, 14..19, 21, 22} ",
-       nrow(data %>% filter(targtype1 %notin% c(1:12, 14:19, 21:22))) == 0)
+#***********************#
+# feature: targsubtype1 #
+#***********************#
+
+if ('targsubtype1' %in% colnames(data)) {
+  
+  # too many distinct values to be usable with most techniques... not clear how to reduce the number
+  nrow(data %>% select(targsubtype1) %>% filter(! is.na(targsubtype1)) %>% distinct())
+
+  data$targsubtype1 <- as.factor(data$targsubtype1)
+  cat('nrows after targsubtype1: ', nrow(data))  
+}
 
 #********************#
 # feature: weaptype1 #
 #********************#
 
-# removed 12 (other) and 13 (unknown)
-data <- data %>% filter(weaptype1 %notin% c(12,13))
+if ('weaptype1' %in% colnames(data)) {
+    
+  # removed 12 (other) and 13 (unknown)
+  data <- data %>% filter(weaptype1 %notin% c(12,13))
+  
+  assert("All incidents have weaptype1 in [1,11]",
+         nrow(data %>% filter(weaptype1 %notin% seq(11))) == 0)
 
-assert("All incidents have weaptype1 in [1,11]",
-       nrow(data %>% filter(weaptype1 %notin% seq(11))) == 0)
+  data$weaptype1 <- as.factor(data$weaptype1)
+  cat('nrows after weaptype1: ', nrow(data))  
+}
+
+#***********************#
+# feature: weapsubtype1 #
+#***********************#
+
+if ('weapsubtype1' %in% colnames(data)) {
+
+  # 30 distinct values, which is close to the usable threshold...
+  nrow(data %>% select(weapsubtype1) %>% filter(! is.na(weapsubtype1)) %>% distinct())
+  
+  # remove NA values
+  data <- data %>% filter(! is.na(weapsubtype1))
+  
+  assert("All incidents have weapsubtype1 in [1,31]",
+         nrow(data %>% filter(weapsubtype1 %notin% seq(31))) == 0)
+  
+  data$weapsubtype1 <- as.factor(data$weapsubtype1)
+  cat('nrows after weapsubtype1: ', nrow(data))  
+}
+
+#*******************#
+# feature: multiple #
+#*******************#
+
+if ('multiple' %in% colnames(data)) {
+  
+  assert("All incidents have multiple in [0,1]",
+         nrow(data %>% filter(multiple %notin% c(0,1))) == 0)
+  
+  data$multiple <- as.factor(data$multiple)
+  cat('nrows after multiple: ', nrow(data))  
+}
+
+#******************#
+# feature: natlty1 #
+#******************#
+
+if ('natlty1' %in% colnames(data)) {
+  
+  # dropping NA
+  data <- data %>% filter(! is.na(data$natlty1))
+  
+  assert("All incidents have natlty1 with values in [4,1004]",
+         nrow(data %>% filter(data$natlty1 %notin% seq(4, 1004))) == 0)
+  
+  data$natlty1 <- as.factor(data$natlty1)
+  cat('nrows after natlty1: ', nrow(data))  
+}
+
+#*******************#
+# feature: property #
+#*******************#
+
+if ('property' %in% colnames(data)) {
+  
+  # dropping NA and -9 ("unknown")
+  data <- data %>% filter(! is.na(property) & ! property == -9)
+  
+  assert("All incidents have property in [0,1]",
+         nrow(data %>% filter(property %notin% c(0,1))) == 0)
+  
+  data$property <- as.factor(data$property)
+  cat('nrows after property: ', nrow(data))  
+}
 
 
-# Verify that we didn't drop all incidents for any of the accepted terrorist groups
-assert("At least 1 incident for all of the terrorist groups",
-       nrow(data %>% select(gname) %>% unique()) == nrow(terrorist_groups))
 
-# 18,055 remaining
-nrow(data)
+#*****************#
+# feature: ransom #
+#*****************#
 
-# Correct types of all variables
-data$gname <- as.factor(data$gname)
-data$attacktype1 <- as.factor(data$attacktype1)
-data$claimed <- as.factor(data$claimed)
-data$country <- as.factor(data$country)
-data$region <- as.factor(data$region)
-data$extended <- as.factor(data$extended)
-data$iyear <- as.integer(data$iyear)
-data$nkill <- as.integer(data$nkill)
-data$nwound <- as.integer(data$nwound)
-data$propextent <- as.factor(data$propextent)
-data$success <- as.factor(data$success)
-data$suicide <- as.factor(data$suicide)
-data$targtype1 <- as.factor(data$targtype1)
-data$weaptype1 <- as.factor(data$weaptype1)
+if ('ransom' %in% colnames(data)) {
+  
+  # # dropping NA and -9 ("unknown")
+  # data <- data %>% filter(! is.na(ransom) & ! ransom == -9)
+  # 
+  # assert("All incidents have ransom in [0,1]",
+  #        nrow(data %>% filter(ransom %notin% c(0,1))) == 0)
+  
+  data$ransom <- as.factor(data$ransom)
+  cat('nrows after ransom: ', nrow(data))  
+}
+
+
+
 
 #**********************#
 # preliminary analysis #
@@ -352,6 +662,11 @@ View(incidents_per_group)
 incidents_for_groups <- function(df, gname) {
   return(df[which(df$gname %in% gname),])
 }
+
+# Verify that we have at least 100 attacks for any of the accepted terrorist groups
+# assert("At least 100 incidents for all of the accepted terrorist groups",
+#        nrow(incidents_per_group %>% select(n_attacks) %>% filter(n_attacks >= 100)) == nrow(terrorist_groups))
+
 
 geom_points_for_incidents <- function(df, color) {
   print(color)
@@ -409,14 +724,14 @@ if (exporting_graphics) {
 
 # split data into training and test sets
 
-# 14,444
 data_subset <- data.frame()
 
 for (gname in terrorist_groups$gname) {
-  selection <- data[sample(which(data$gname == gname), size=100),]
-  data_subset <- rbind(data_subset, selection)  
+  incidents_for_group <- which(data$gname == gname)
+  n_incidents <- length(incidents_for_group)
+  selection <- data[sample(incidents_for_group, size=min(200, n_incidents)),]
+  data_subset <- rbind(data_subset, selection)
 }
-
 
 training_data <- data_subset[sample(nrow(data_subset), size=nrow(data_subset) * 0.8),]
 testing_data <- data_subset %>% filter(N %notin% training_data$N)
@@ -424,33 +739,24 @@ testing_data <- data_subset %>% filter(N %notin% training_data$N)
 nrow(training_data)
 nrow(testing_data)
 
-# model_formula <- gname~attacktype1 + claimed + extended + iyear + nkill + nwound +
-#   propextent +  region +  success +  suicide +  targtype1 +  weaptype1 
+# check <- training_data %>% filter(gname == "Kurdistan Workers' Party (PKK)")
+# View(check)
 
-
-
-# logistic regression
-
-
-# TODO:
 
 # Linear Discriminant Analysis
-library(MASS)
 
-lda.formula <- gname~attacktype1 + claimed + extended + iyear + nkill + nwound +
-  propextent +  success +  suicide +  targtype1
-
+# colnames(training_data)
+lda.formula <- gname~nwound + nkill + nkillter + nperps + claimed + success + multiple + extended + suicide + targtype1
 lda.fit=lda(lda.formula, data=training_data)
 lda.fit
 # plot(lda.fit)
 lda.pred=predict(lda.fit, testing_data)
-names(lda.pred)
 table(lda.pred$class, testing_data$gname)
 mean(lda.pred$class == testing_data$gname)
 
 
 # Quadratic Discriminant Analysis
-qda.formula <- gname~claimed + extended + nkill + nwound + success + iyear
+qda.formula <- gname~claimed + nkill + nwound + multiple + nperps + nkillter + property
 qda.fit=qda(qda.formula, data=training_data)
 qda.fit
 qda.class=predict(qda.fit, testing_data)$class
@@ -458,17 +764,50 @@ table(qda.class, testing_data$gname)
 mean(qda.class==testing_data$gname)
 
 # decision trees
-library(tree)
-library(randomForest)
-
-tree.formula <- gname~attacktype1 + claimed + extended + iyear + nkill + nwound +
-  propextent +  success +  suicide +  targtype1 + region
+tree.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
 tree.fit=tree(tree.formula, training_data)
 summary(tree.fit)
+tree.pred=predict(tree.fit, newdata = testing_data, type = "class")
+mean(tree.pred == testing_data$gname)
+
+comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
+colnames(comp) <- c('predicted', 'actual')
+
+comp$predicted <- tree.pred
+comp$actual <- testing_data$gname
+
+comp$pred_id <- sapply(comp$predicted, map_group_to_id)
+comp$actual_id <- sapply(comp$actual, map_group_to_id)
+
+table(comp$pred_id, comp$actual_id)
+
 
 # random forests
+colnames(training_data)
+randforest.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
 
+set.seed(1)
+rf.fit=randomForest(randforest.formula, data=training_data, mtry=3, ntree=50, importance=TRUE)
+rf.pred=predict(rf.fit, newdata = testing_data, type = "class")
+mean(rf.pred == testing_data$gname)
+importance(rf.fit)
+varImpPlot(rf.fit)
 
+comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
+colnames(comp) <- c('predicted', 'actual')
+
+comp$predicted <- rf.pred
+comp$actual <- testing_data$gname
+
+comp$pred_id <- sapply(comp$predicted, map_group_to_id)
+comp$actual_id <- sapply(comp$actual, map_group_to_id)
+
+table(comp$pred_id, comp$actual_id)
 
 
 # svm
+
+
+
+# TODO: ADD "OTHER" TERRORIST GROUP WITH RANDOMLY SAMPLED INCIDENTS FROM OTHER GROUPS
+
