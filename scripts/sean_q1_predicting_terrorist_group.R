@@ -33,7 +33,7 @@ load_pkgs(c(
   
   # bagging and random forests
   "randomForest",
-  
+
   # support vector machines
   "e1071"
 ))
@@ -642,8 +642,6 @@ if ('property' %in% colnames(data)) {
   cat('nrows after property: ', nrow(data))  
 }
 
-
-
 #*****************#
 # feature: ransom #
 #*****************#
@@ -671,9 +669,14 @@ incidents_for_groups <- function(df, gname) {
 }
 
 # Verify that we have at least 100 attacks for any of the accepted terrorist groups
+min_incidents_per_group = 50
 assert("At least 100 incidents for all of the accepted terrorist groups",
-       nrow(incidents_per_group %>% select(n_attacks) %>% filter(n_attacks >= 50)) == nrow(terrorist_groups))
+       nrow(incidents_per_group %>% select(n_attacks) %>% filter(n_attacks >= min_incidents_per_group)) == nrow(terrorist_groups))
 
+#---------------------------------------------------#
+# Export World Map With Attacks Per Group as Points #
+#---------------------------------------------------#
+exporting_graphics = FALSE
 
 geom_points_for_incidents <- function(df, color) {
   print(color)
@@ -688,11 +691,6 @@ geom_points_for_groups <- function(df, gname, color) {
   pts <- geom_points_for_incidents(incidents, color)
   return(pts)
 }
-
-#---------------------------------------------------#
-# Export World Map With Attacks Per Group as Points #
-#---------------------------------------------------#
-exporting_graphics = FALSE
 
 if (exporting_graphics) {
   world_map <- get_world_map()
@@ -749,30 +747,59 @@ nrow(testing_data)
 # check <- training_data %>% filter(gname == "Kurdistan Workers' Party (PKK)")
 # View(check)
 
+conf_matrix <- function(actual, pred, data) {
+  comp <- data.frame(matrix(nrow=nrow(data), ncol=2))
+  colnames(comp) <- c('predicted', 'actual')
+  
+  comp$predicted <- pred
+  comp$actual <- actual
+  
+  comp$pred_id <- sapply(comp$predicted, map_group_to_id)
+  comp$actual_id <- sapply(comp$actual, map_group_to_id)
+  
+  return(as.matrix(table(comp$pred_id, comp$actual_id)))
+}
+
+perf_summary <- function(desc, actual, pred, data) {
+  cat('Model Summary for ', desc)
+  
+  cm <- conf_matrix(lda.pred, testing_data$gname, testing_data)
+  
+  total = sum(cm)
+  diag = sum(diag(cm))
+  non_diag = total - diag
+  
+  print(conf_matrix(pred, actual, data))
+  
+  cat('% True Positive Rate (TPR): ', diag/total, "\n")
+  cat('% False Positive Rate (FPR): ', non_diag/total, "\n")
+}
+
 
 #******************************#
 # Linear Discriminant Analysis #
 #******************************#
 
-# colnames(training_data)
 lda.formula <- gname~nwound + nkill + nkillter + nperps + claimed + success + multiple + extended + suicide + targtype1
-lda.fit=lda(lda.formula, data=training_data)
+lda.fit <- lda(lda.formula, data=training_data)
 lda.fit
-# plot(lda.fit)
-lda.pred=predict(lda.fit, testing_data)
-table(lda.pred$class, testing_data$gname)
-mean(lda.pred$class == testing_data$gname)
 
+lda.pred <- predict(lda.fit, testing_data)$class
+
+perf_summary('LDA', actual=testing_data$gname, pred=lda.pred, data=testing_data)
 
 #*********************************#
 # Quadratic Discriminant Analysis #
 #*********************************#
-qda.formula <- gname~claimed + nkill + nwound + multiple + nperps + nkillter + property
-qda.fit=qda(qda.formula, data=training_data)
+
+# QDA fails with "rank deficiency" error given categorical variables with more than a few variables
+qda.formula <- gname~nwound + nkill + nkillter + nperps + claimed +  multiple
+qda.fit <- qda(qda.formula, data=training_data)
 qda.fit
-qda.class=predict(qda.fit, testing_data)$class
-table(qda.class, testing_data$gname)
-mean(qda.class==testing_data$gname)
+
+qda.pred <- predict(qda.fit, testing_data)$class
+
+perf_summary('QDA', actual=testing_data$gname, pred=qda.pred, data=testing_data)
 
 #***************#
 # Decision Tree #
@@ -781,24 +808,12 @@ tree.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + 
 tree.fit=tree(tree.formula, training_data)
 summary(tree.fit)
 tree.pred=predict(tree.fit, newdata = testing_data, type = "class")
-mean(tree.pred == testing_data$gname)
 
-comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
-colnames(comp) <- c('predicted', 'actual')
-
-comp$predicted <- tree.pred
-comp$actual <- testing_data$gname
-
-comp$pred_id <- sapply(comp$predicted, map_group_to_id)
-comp$actual_id <- sapply(comp$actual, map_group_to_id)
-
-table(comp$pred_id, comp$actual_id)
-mean(comp$pred_id == comp$actual_id)
+perf_summary('Decision Tree', actual=testing_data$gname, pred=tree.pred, data=testing_data)
 
 #****************#
 # Random Forests #
 #****************#
-colnames(training_data)
 randforest.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
 
 set.seed(1)
@@ -808,17 +823,7 @@ rf.pred=predict(rf.fit, newdata = testing_data, type = "class")
 importance(rf.fit)
 varImpPlot(rf.fit)
 
-comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
-colnames(comp) <- c('predicted', 'actual')
-
-comp$predicted <- rf.pred
-comp$actual <- testing_data$gname
-
-comp$pred_id <- sapply(comp$predicted, map_group_to_id)
-comp$actual_id <- sapply(comp$actual, map_group_to_id)
-
-table(comp$pred_id, comp$actual_id)
-mean(comp$pred_id == comp$actual_id)
+perf_summary('Random Forest', actual=testing_data$gname, pred=rf.pred, data=testing_data)
 
 #*************************#
 # Support Vector Machines #
@@ -828,20 +833,13 @@ mean(comp$pred_id == comp$actual_id)
 #
 #   note: I tried polynomial, radial basis, and sigmoid kernel functions, but linear gave the best results
 svm.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
-svm.fit=svm(svm.formula, data=training_data, kernel="linear", cost=1, scale=FALSE)
+svm.fit=svm(svm.formula, data=training_data, kernel="linear", cost=1, scale=TRUE)
 svm.pred = predict(svm.fit, newdata = testing_data)
 
-comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
-colnames(comp) <- c('predicted', 'actual')
+svm.fit$index
+summary(svm.fit)
 
-comp$predicted <- svm.pred
-comp$actual <- testing_data$gname
-
-comp$pred_id <- sapply(comp$predicted, map_group_to_id)
-comp$actual_id <- sapply(comp$actual, map_group_to_id)
-
-table(comp$pred_id, comp$actual_id)
-mean(comp$pred_id == comp$actual_id)
+perf_summary('SVM (Linear), Cost = 1', actual=testing_data$gname, pred=svm.pred, data=testing_data)
 
 # tuning cost to find best model
 #
@@ -851,26 +849,14 @@ tune.out=tune(method=svm,
               train.x=svm.formula, 
               data=training_data, 
               kernel="linear", 
-              ranges=list(cost=c(0.001, 0.01, 0.1, 1,5,10,100)))
+              ranges=list(cost=c(1,5,10,15)))
 
 summary(tune.out)
 
 svm.best.fit=tune.out$best.model
-summary(svm.best.fit)
-
 svm.best.pred = predict(svm.best.fit, newdata = testing_data)
 
-comp <- data.frame(matrix(nrow=nrow(testing_data), ncol=2))
-colnames(comp) <- c('predicted', 'actual')
-
-comp$predicted <- svm.best.pred
-comp$actual <- testing_data$gname
-
-comp$pred_id <- sapply(comp$predicted, map_group_to_id)
-comp$actual_id <- sapply(comp$actual, map_group_to_id)
-
-table(comp$pred_id, comp$actual_id)
-mean(comp$pred_id == comp$actual_id)
+perf_summary('Tuned-SVM (Linear), Variable Cost', actual=testing_data$gname, pred=svm.best.pred, data=testing_data)
 
 
 # TODO: ADD "OTHER" TERRORIST GROUP WITH RANDOMLY SAMPLED INCIDENTS FROM OTHER GROUPS
