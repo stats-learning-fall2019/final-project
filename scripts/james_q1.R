@@ -466,3 +466,19 @@ lines(roc(roc71, predict(pruned, test)[,1], direction='<'), col='green', lwd=3)
 lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=3)
 lines(roc(roc51, roc52, direction='<'), col='purple', lwd=3)
 lines(roc(roc61, roc62, direction='<'), col='orange', lwd=3)
+
+# Create graphic for Tree Model 6
+for (i in 4:ncol(select.balanced$data)) {
+  if (colnames(select.balanced$data)[i] != "longitude" && colnames(select.balanced$data)[i] != "latitude"){
+    select.balanced$data[,colnames(select.balanced$data)[i]] <- as.factor(select.balanced$data[,colnames(select.balanced$data)[i]])
+  }
+}
+
+
+tree.model6 <- rpart(success~., data=select.balanced$data)
+
+important.vars <- summary(tree.model6)$variable.importance
+important.vars
+fancyRpartPlot(tree.model6)
+
+# Change column names for graphic 
