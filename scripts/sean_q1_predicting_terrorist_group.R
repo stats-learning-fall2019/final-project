@@ -763,7 +763,7 @@ conf_matrix <- function(actual, pred, data) {
 perf_summary <- function(desc, actual, pred, data) {
   cat('Model Summary for ', desc)
   
-  cm <- conf_matrix(lda.pred, testing_data$gname, testing_data)
+  cm <- conf_matrix(pred, testing_data$gname, testing_data)
   
   total = sum(cm)
   diag = sum(diag(cm))
@@ -804,7 +804,7 @@ perf_summary('QDA', actual=testing_data$gname, pred=qda.pred, data=testing_data)
 #***************#
 # Decision Tree #
 #***************#
-tree.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
+tree.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + multiple + targtype1 + attacktype1 + weaptype1
 tree.fit=tree(tree.formula, training_data)
 summary(tree.fit)
 tree.pred=predict(tree.fit, newdata = testing_data, type = "class")
@@ -817,7 +817,7 @@ perf_summary('Decision Tree', actual=testing_data$gname, pred=tree.pred, data=te
 randforest.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
 
 set.seed(1)
-rf.fit=randomForest(randforest.formula, data=training_data, mtry=4, ntree=50, importance=TRUE)
+rf.fit=randomForest(randforest.formula, data=training_data, mtry=3, ntree=50, importance=TRUE)
 rf.pred=predict(rf.fit, newdata = testing_data, type = "class")
 
 importance(rf.fit)
@@ -833,7 +833,7 @@ perf_summary('Random Forest', actual=testing_data$gname, pred=rf.pred, data=test
 #
 #   note: I tried polynomial, radial basis, and sigmoid kernel functions, but linear gave the best results
 svm.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
-svm.fit=svm(svm.formula, data=training_data, kernel="linear", cost=1, scale=TRUE)
+svm.fit=svm(svm.formula, data=training_data, kernel="linear", cost=10, scale=TRUE)
 svm.pred = predict(svm.fit, newdata = testing_data)
 
 svm.fit$index
