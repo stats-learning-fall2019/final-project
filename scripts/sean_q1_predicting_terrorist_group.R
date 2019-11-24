@@ -35,7 +35,10 @@ load_pkgs(c(
   "randomForest",
 
   # support vector machines
-  "e1071"
+  "e1071",
+  
+  # library for ROC curves
+  "pROC"
 ))
 
 # Load data
@@ -81,6 +84,7 @@ multi_regional_groups <- known_group_data %>%
 
 # 103 multi-regional groups
 nrow(multi_regional_groups)
+
 
 
 # find groups with "many" attacks that operate in multiple regions
@@ -224,18 +228,15 @@ data <- incidents %>% select(
   
   # country, # categorical
   region, # categorical
-  
-  # too many NA and -99 values, so removing for now
-  nperps, # numerical
-  
+
   nwound, # numerical
   nkill, # numerical
   nkillter, # numerical
   nperps, # numerical
   # nperpcap, # numerical
 
-  property, # categorical
-  propextent, # categorical
+  # property, # categorical
+  # propextent, # categorical
   
   # ransom, # categorical
   claimed, # categorical
@@ -306,7 +307,6 @@ if ('iday' %in% colnames(data)) {
 # feature: imonth #
 #*****************#
 
-cat('before: ', nrow(data))
 if ('imonth' %in% colnames(data)) {
   # From GTDB cookbook:
   #   For attacks that took place between 1970 and 2011, if the exact month of the 
@@ -662,7 +662,11 @@ if ('ransom' %in% colnames(data)) {
 # preliminary analysis #
 #**********************#
 incidents_per_group <- data %>% group_by(gname) %>% summarize(n_attacks=n())
-View(incidents_per_group)
+incidents_per_group$weight = sapply(incidents_per_group$n_attacks, function(value) value / sum(incidents_per_group$n_attacks))
+
+# View(incidents_per_group)
+median_incidents_per_group <- median(incidents_per_group$n_attacks)
+mean_incidents_per_group <- mean(incidents_per_group$n_attacks)
 
 incidents_for_groups <- function(df, gname) {
   return(df[which(df$gname %in% gname),])
@@ -722,30 +726,43 @@ if (exporting_graphics) {
   dev.off()
 }
 
-
 #----------------#
 # Model Creation #
 #----------------#
 
-# split data into training and test sets
-
-data_subset <- data.frame()
-
-for (gname in terrorist_groups$gname) {
-  incidents_for_group <- which(data$gname == gname)
-  n_incidents <- length(incidents_for_group)
-  selection <- data[sample(incidents_for_group, size=min(200, n_incidents)),]
-  data_subset <- rbind(data_subset, selection)
+balance_data <- function(data, target) {
+  data_temp <- data.frame()
+  
+  for (gname in terrorist_groups$gname) {
+    incidents_for_group <- which(data$gname == gname)
+    n_incidents <- length(incidents_for_group)
+    
+    with_repeats <- if(n_incidents >= target) FALSE else TRUE
+    selection <- data[sample(incidents_for_group, size=target, replace = with_repeats),]
+    data_temp <- rbind(data_temp, selection)
+  }
+  
+  # shuffle observations
+  data_temp <- data_temp[sample(nrow(data_temp), 
+                                size=nrow(data_temp), 
+                                replace = FALSE),]
+  
+  return(data_temp)
 }
 
-training_data <- data_subset[sample(nrow(data_subset), size=nrow(data_subset) * 0.8),]
-testing_data <- data_subset %>% filter(N %notin% training_data$N)
+# split into training and testing data sets
+training_data <- data[sample(nrow(data), size=nrow(data) * 0.8),]
+testing_data <- data %>% filter(N %notin% training_data$N)
 
-nrow(training_data)
-nrow(testing_data)
+# balance data using "oversampling" method
+# target <- median((training_data %>% group_by(gname) %>% summarize(n=n()) %>% select(n))$n)
+target <- max((training_data %>% group_by(gname) %>% summarize(n=n()) %>% select(n))$n)
+training_data <- balance_data(training_data, target=target)
 
-# check <- training_data %>% filter(gname == "Kurdistan Workers' Party (PKK)")
-# View(check)
+n_attacks_per_group <- training_data %>% group_by(gname) %>% summarize(n_attacks = n())
+View(n_attacks_per_group)
+n_training <- nrow(training_data)
+n_testing <- nrow(testing_data)
 
 conf_matrix <- function(actual, pred, data) {
   comp <- data.frame(matrix(nrow=nrow(data), ncol=2))
@@ -757,107 +774,132 @@ conf_matrix <- function(actual, pred, data) {
   comp$pred_id <- sapply(comp$predicted, map_group_to_id)
   comp$actual_id <- sapply(comp$actual, map_group_to_id)
   
-  return(as.matrix(table(comp$pred_id, comp$actual_id)))
+  return(as.matrix(table(comp$actual_id, comp$pred_id)))
 }
 
 perf_summary <- function(desc, actual, pred, data) {
   cat('Model Summary for ', desc)
   
-  cm <- conf_matrix(pred, testing_data$gname, testing_data)
+  cm <- conf_matrix(actual, pred, data)
+  print(cm)
   
-  total = sum(cm)
-  diag = sum(diag(cm))
-  non_diag = total - diag
-  
-  print(conf_matrix(pred, actual, data))
-  
-  cat('% True Positive Rate (TPR): ', diag/total, "\n")
-  cat('% False Positive Rate (FPR): ', non_diag/total, "\n")
-}
+  total <- length(actual)
+  tp <- sum(actual == pred)
+  tpr <- tp / total
+  fp <- sum(actual != pred)
+  fpr <- fp / total
 
+  cat('# Total: ', total, "\n")
+  cat('# True Positives (TP): ', tp, "\n")
+  cat('% True Positive Rate (TPR): ', tpr, "\n")
+  cat('# False Positives (FP): ', fp, "\n")
+  cat('% False Positive Rate (FPR): ', fpr, "\n")
+
+  return(list(tpr=tpr, fpr=fpr, cm=cm))
+}
 
 #******************************#
 # Linear Discriminant Analysis #
 #******************************#
 
-lda.formula <- gname~nwound + nkill + nkillter + nperps + claimed + success + multiple + extended + suicide + targtype1
+lda.formula.all <- gname~.-N
+lda.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
+lda.formula <- lda.formula.nongeotemporal
+
 lda.fit <- lda(lda.formula, data=training_data)
 lda.fit
 
 lda.pred <- predict(lda.fit, testing_data)$class
-
-perf_summary('LDA', actual=testing_data$gname, pred=lda.pred, data=testing_data)
+lda.perf <- perf_summary('LDA', actual=testing_data$gname, pred=lda.pred, data=testing_data)
 
 #*********************************#
 # Quadratic Discriminant Analysis #
 #*********************************#
 
 # QDA fails with "rank deficiency" error given categorical variables with more than a few variables
-qda.formula <- gname~nwound + nkill + nkillter + nperps + claimed +  multiple
+qda.formula <- gname~nwound + nkill + nkillter + nperps + claimed + multiple + imonth + iday
 qda.fit <- qda(qda.formula, data=training_data)
 qda.fit
 
 qda.pred <- predict(qda.fit, testing_data)$class
-
-perf_summary('QDA', actual=testing_data$gname, pred=qda.pred, data=testing_data)
+qda.perf <-perf_summary('QDA', actual=testing_data$gname, pred=qda.pred, data=testing_data)
 
 #***************#
 # Decision Tree #
 #***************#
-tree.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + multiple + targtype1 + attacktype1 + weaptype1
+tree.formula.all <- gname~.-N
+tree.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
+tree.formula <- tree.formula.nongeotemporal
+  
 tree.fit=tree(tree.formula, training_data)
+plot(tree.fit)
+text(tree.fit, pretty=0)
 summary(tree.fit)
-tree.pred=predict(tree.fit, newdata = testing_data, type = "class")
 
-perf_summary('Decision Tree', actual=testing_data$gname, pred=tree.pred, data=testing_data)
+tree.pred=predict(tree.fit, newdata = testing_data, type = "class")
+tree.perf <- perf_summary('Decision Tree', actual=testing_data$gname, pred=tree.pred, data=testing_data)
 
 #****************#
 # Random Forests #
 #****************#
-randforest.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
+randforest.formula.all <- gname~.-N
+randforest.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
+randforest.formula <- randforest.formula.nongeotemporal
 
 set.seed(1)
-rf.fit=randomForest(randforest.formula, data=training_data, mtry=3, ntree=50, importance=TRUE)
+rf.fit=randomForest(randforest.formula, data=training_data, mtry=4, ntree=100, importance=TRUE)
+summary(rf.fit)
 rf.pred=predict(rf.fit, newdata = testing_data, type = "class")
 
 importance(rf.fit)
 varImpPlot(rf.fit)
 
-perf_summary('Random Forest', actual=testing_data$gname, pred=rf.pred, data=testing_data)
+rf.perf <- perf_summary('Random Forest', actual=testing_data$gname, pred=rf.pred, data=testing_data)
 
 #*************************#
 # Support Vector Machines #
 #*************************#
-
-# basic (non-tuned) linear model
-#
-#   note: I tried polynomial, radial basis, and sigmoid kernel functions, but linear gave the best results
-svm.formula <- gname~nwound + nkill + nkillter + nperps  + claimed + success + multiple + extended + suicide + targtype1 + attacktype1 + weaptype1 + property + propextent
-svm.fit=svm(svm.formula, data=training_data, kernel="linear", cost=10, scale=TRUE)
-svm.pred = predict(svm.fit, newdata = testing_data)
-
-svm.fit$index
-summary(svm.fit)
-
-perf_summary('SVM (Linear), Cost = 1', actual=testing_data$gname, pred=svm.pred, data=testing_data)
+svm.formula.all <- gname~.-N
+svm.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
+svm.formula.selective <- gname~targtype1 + claimed + multiple + nkill + iday + attacktype1
+svm.formula <- svm.formula.nongeotemporal
 
 # tuning cost to find best model
-#
-#   cost=10 gave best results on training data, but it seems to be overfitting
 set.seed(1)
-tune.out=tune(method=svm, 
-              train.x=svm.formula, 
-              data=training_data, 
-              kernel="linear", 
-              ranges=list(cost=c(1,5,10,15)))
+
+# subset of training data to reduce time
+svm.training_data <- training_data[sample(n_training, size=1000), ]
+  
+tune.out <- tune(method=svm,
+                 train.x=svm.formula,
+                 data=svm.training_data,
+                 kernel="linear",
+                 ranges=list(cost=c(0.01,1,10,100)),
+                 scale=TRUE,
+                 decision.values=TRUE)
 
 summary(tune.out)
 
-svm.best.fit=tune.out$best.model
-svm.best.pred = predict(svm.best.fit, newdata = testing_data)
+svm.best.fit <- tune.out$best.model
+svm.best.pred <- predict(svm.best.fit, newdata = testing_data, decision.values = TRUE)
+svm.perf <- perf_summary('Tuned-SVM (Linear), Variable Cost', actual=testing_data$gname, pred=svm.best.pred, data=testing_data)
 
-perf_summary('Tuned-SVM (Linear), Variable Cost', actual=testing_data$gname, pred=svm.best.pred, data=testing_data)
+# NOTE: ROC Curves do not seem to work well for multi-class problems!
 
+models <- c("LDA", "QDA", "Decision\nTree", "Random\nForest", "SVM")
+model_tpr = c(lda.perf$tpr, qda.perf$tpr, tree.perf$tpr, rf.perf$tpr, svm.perf$tpr)
+colors <- c('slategray2', 'slategray', 'slategray', 'slategray1', 'slategray2')
 
-# TODO: ADD "OTHER" TERRORIST GROUP WITH RANDOMLY SAMPLED INCIDENTS FROM OTHER GROUPS
-
+png(filename="presentation/graphics/sean/q1_barplot_model_perf_no_geo.png",
+    type="cairo", # use this for higher quality exports
+    units="in",
+    width=10,
+    height=8,
+    pointsize=12,
+    res=192)
+barplot(model_tpr, horiz=TRUE, names.arg=models, xlim=c(0,0.6), 
+        cex.lab=1.3, cex.axis=1.2, cex.names=1.4, xlab="True Positive Rate", 
+        col=colors)
+abline(v=1.0/nrow(terrorist_groups), col='red', lty=2, lwd=3)
+legend("topright", legend=c("CHANCE"), col=c("red"), lty=2, lwd=3, text.font=4, box.lty=0)
+dev.off()
