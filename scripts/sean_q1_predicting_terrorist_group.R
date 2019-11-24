@@ -37,8 +37,11 @@ load_pkgs(c(
   # support vector machines
   "e1071",
   
-  # library for ROC curves
-  "pROC"
+  # decision trees (alternate)
+  "rpart",
+  
+  # pretty plotting of decision trees
+  "rpart.plot"
 ))
 
 # Load data
@@ -798,13 +801,14 @@ perf_summary <- function(desc, actual, pred, data) {
   return(list(tpr=tpr, fpr=fpr, cm=cm))
 }
 
+including_geospatial_vars <- FALSE
+
 #******************************#
 # Linear Discriminant Analysis #
 #******************************#
-
 lda.formula.all <- gname~.-N
 lda.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
-lda.formula <- lda.formula.nongeotemporal
+lda.formula <- if(including_geospatial_vars) lda.formula.all else lda.formula.nongeotemporal
 
 lda.fit <- lda(lda.formula, data=training_data)
 lda.fit
@@ -817,7 +821,10 @@ lda.perf <- perf_summary('LDA', actual=testing_data$gname, pred=lda.pred, data=t
 #*********************************#
 
 # QDA fails with "rank deficiency" error given categorical variables with more than a few variables
-qda.formula <- gname~nwound + nkill + nkillter + nperps + claimed + multiple + imonth + iday
+qda.selective.formula <- gname~nwound + nkill + nkillter + nperps + claimed + multiple + imonth + iday
+qda.geospatial.formula <- gname~latitude+longitude+iyear+imonth+iday
+qda.formula <- if(including_geospatial_vars) qda.geospatial.formula else qda.selective.formula
+
 qda.fit <- qda(qda.formula, data=training_data)
 qda.fit
 
@@ -829,12 +836,27 @@ qda.perf <-perf_summary('QDA', actual=testing_data$gname, pred=qda.pred, data=te
 #***************#
 tree.formula.all <- gname~.-N
 tree.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
-tree.formula <- tree.formula.nongeotemporal
+tree.formula <- if(including_geospatial_vars) tree.formula.all else tree.formula.nongeotemporal
   
 tree.fit=tree(tree.formula, training_data)
-plot(tree.fit)
-text(tree.fit, pretty=0)
 summary(tree.fit)
+
+exporting_tree = FALSE
+if (exporting_tree) {
+  png(filename="presentation/graphics/sean/q1_decision_tree_with_geo.png",
+      type="cairo", # use this for higher quality exports
+      units="in",
+      width=10,
+      height=8,
+      pointsize=12,
+      res=192)
+  
+  # must use rpart for this to work!
+  # prp(tree.fit)
+  plot(tree.fit)
+  text(tree.fit, pretty=0)
+  dev.off()
+}
 
 tree.pred=predict(tree.fit, newdata = testing_data, type = "class")
 tree.perf <- perf_summary('Decision Tree', actual=testing_data$gname, pred=tree.pred, data=testing_data)
@@ -842,12 +864,12 @@ tree.perf <- perf_summary('Decision Tree', actual=testing_data$gname, pred=tree.
 #****************#
 # Random Forests #
 #****************#
-randforest.formula.all <- gname~.-N
-randforest.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
-randforest.formula <- randforest.formula.nongeotemporal
+rf.formula.all <- gname~.-N
+rf.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
+rf.formula <- if(including_geospatial_vars) rf.formula.all else rf.formula.nongeotemporal
 
 set.seed(1)
-rf.fit=randomForest(randforest.formula, data=training_data, mtry=4, ntree=100, importance=TRUE)
+rf.fit=randomForest(rf.formula, data=training_data, mtry=4, ntree=100, importance=TRUE)
 summary(rf.fit)
 rf.pred=predict(rf.fit, newdata = testing_data, type = "class")
 
@@ -862,7 +884,7 @@ rf.perf <- perf_summary('Random Forest', actual=testing_data$gname, pred=rf.pred
 svm.formula.all <- gname~.-N
 svm.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
 svm.formula.selective <- gname~targtype1 + claimed + multiple + nkill + iday + attacktype1
-svm.formula <- svm.formula.nongeotemporal
+svm.formula <- if(including_geospatial_vars) svm.formula.all else svm.formula.nongeotemporal
 
 # tuning cost to find best model
 set.seed(1)
@@ -890,14 +912,14 @@ models <- c("LDA", "QDA", "Decision\nTree", "Random\nForest", "SVM")
 model_tpr = c(lda.perf$tpr, qda.perf$tpr, tree.perf$tpr, rf.perf$tpr, svm.perf$tpr)
 colors <- c('slategray2', 'slategray', 'slategray', 'slategray1', 'slategray2')
 
-png(filename="presentation/graphics/sean/q1_barplot_model_perf_no_geo.png",
+png(filename="presentation/graphics/sean/q1_barplot_model_perf_with_geo.png",
     type="cairo", # use this for higher quality exports
     units="in",
     width=10,
     height=8,
     pointsize=12,
     res=192)
-barplot(model_tpr, horiz=TRUE, names.arg=models, xlim=c(0,0.6), 
+barplot(model_tpr, horiz=TRUE, names.arg=models, xlim=c(0,1), 
         cex.lab=1.3, cex.axis=1.2, cex.names=1.4, xlab="True Positive Rate", 
         col=colors)
 abline(v=1.0/nrow(terrorist_groups), col='red', lty=2, lwd=3)
