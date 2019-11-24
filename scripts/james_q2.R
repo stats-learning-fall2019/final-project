@@ -13,6 +13,7 @@ library(caTools)
 library(leaps)
 library(ROSE)
 library(dplyr)
+library(e1071)
 
 # Load Terrorism Dataset
 data <- read.csv('../data/gtdb_cleansed.csv')
@@ -62,12 +63,12 @@ for (i in 4:ncol(data.reduced)) {
 # Lets use a subset of the data
 set.seed(42)
 data.subset <- sample_frac(data.reduced, .2)
-
-model1 <- lm(ncasualties~., data.subset)
-summary(model1)
-sink("model1_1.txt")
-print(summary(model1))
-sink()
+# 
+# model1 <- lm(ncasualties~., data.subset)
+# summary(model1)
+# sink("model1_1.txt")
+# print(summary(model1))
+# sink()
 
 data.reduced <- subset(data.reduced, data.reduced$success == 1)
 data.reduced$provstate <- NULL
@@ -83,10 +84,72 @@ summary(model2)
 # Quick backwards selection
 model3 <- lm(ncasualties~ iyear + region + doubtterr + suicide + attacktype1 + targsubtype1 + weaptype1 + property, data.reduced)
 summary(model3)
-plot(model3)
+#plot(model3)
 
 # Remove outliers. I don't think that we will be able to accuratly predict them (there are only 12 points out of over 100,000 greater than 1000)
 data.reduced.2 <- subset(data.reduced, data.reduced$ncasualties < 1000)
-model4 <- lm(ncasualties~ iyear + region + doubtterr + suicide + attacktype1 + targsubtype1 + weaptype1 + property, data.reduced.2)
+data.reduced.2 <- subset(data.reduced.2, data.reduced.2$ncasualties != 0)
+model4 <- lm(log(ncasualties)~ iyear + region + doubtterr + suicide + attacktype1 + weaptype1, data.reduced.2)
 summary(model4)
-plot(model4)
+
+#plot(model4)
+
+# Add 0s back in
+data.reduced.2 <- subset(data.reduced, data.reduced$ncasualties < 1000)
+
+# Try a non-linear model
+model5 <- rpart(ncasualties~ iyear + region + doubtterr + attacktype1 + weaptype1, data.reduced.2)
+summary(model5)
+fancyRpartPlot(model5)
+
+ model6 <- rpart(ncasualties~., data.reduced.2)
+summary(model6) 
+fancyRpartPlot(model6)
+rsq.rpart(model6)
+
+data.subset <- sample_frac(data.reduced.2, .2)
+# Try SVMs 
+model7 <- svm(ncasualties~., data.subset, kernel="radial")
+summary(model7)
+
+tune.model7 <- tune(svm,ncasualties~.,data=data.subset, kernal="radial",ranges=list(cost=c(0.001, 0.01, 0.1, 1,5,10,100)))
+summary(tune.model7)
+
+# - Detailed performance results:
+#   cost    error dispersion
+# 1 1e-03 548.8293   211.8781
+# 2 1e-02 537.8306   210.8174
+# 3 1e-01 520.8024   209.0696
+# 4 1e+00 505.5878   207.4679
+# 5 5e+00 498.3797   206.8093
+# 6 1e+01 494.5318   206.1339
+# 7 1e+02 480.6113   205.4937
+
+summary(tune.model7$best.model)
+
+rsq <- function (x, y) cor(x, y) ^ 2
+
+rsq(na.omit(data.subset)$ncasualties, predict(tune.model7$best.model))
+rsq(na.omit(data.subset)$ncasualties, predict(model7))
+    
+model8 <- svm(ncasualties~., data.subset, kernel="radial", cost=1000)
+summary(model8)
+
+model9 <- svm(ncasualties~., data.subset, kernel="radial", cost=10)
+
+rsq(na.omit(data.subset)$ncasualties, predict(model8))
+
+# Try on test data
+set.seed(123)
+data.subset.2 <- sample_frac(data.reduced.2, .2)
+
+rsq(na.omit(data.subset.2)$ncasualties, predict(model8, data.subset.2)) # 0.1308047
+rsq(na.omit(data.subset.2)$ncasualties, predict(tune.model7$best.model,data.subset.2)) # 0.1612188
+rsq(na.omit(data.subset.2)$ncasualties, predict(model9,data.subset.2)) # 0.1539635
+rsq(na.omit(data.subset.2)$ncasualties, predict(model7,data.subset.2)) # 0.1338144
+
+
+# Try random forest
+
+
+
