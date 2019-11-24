@@ -42,6 +42,8 @@ data.cropped$nkill <- NULL
 data.cropped$nwound <- NULL
 data.cropped$N <- NULL
 data.cropped$eventid <- NULL
+data.cropped$country <- NULL
+data.cropped$natlty1 <- NULL
 # Remove columns with an excessive amount of NAs
 NA.per.column <- sapply(data.cropped, function(x) sum(is.na(x)))
 data.reduced <- data.cropped[,which(NA.per.column < 10000)]
@@ -54,16 +56,37 @@ for (i in 4:ncol(data.reduced)) {
 
 
 # First model attempt
-model1 <- lm(ncasualties~ ., data.reduced)
+#model1 <- lm(ncasualties~ ., data.reduced)
 # Error: cannot allocate vector of size 41.1 Gb
 
-# Backwards selection will not work apparently
-#foward.select <- regsubsets(ncasualties~., data=data.reduced, method="forward", nvmax=20)
-#Error: cannot allocate vector of size 48.1 Gb
+# Lets use a subset of the data
+set.seed(42)
+data.subset <- sample_frac(data.reduced, .2)
 
-# Try a different approach 
+model1 <- lm(ncasualties~., data.subset)
+summary(model1)
+sink("model1_1.txt")
+print(summary(model1))
+sink()
 
-# for (i in 4:ncol(data.reduced)-1) {
-#   print(colnames(data.reduced)[i])
-#   print(chisq.test(data.reduced[,i], data.reduced$ncasualties))
-# }
+data.reduced <- subset(data.reduced, data.reduced$success == 1)
+data.reduced$provstate <- NULL
+data.reduced$city <- NULL
+data.reduced$gname <- NULL
+data.reduced$success <- NULL
+rownames(data.reduced) <- NULL
+# This model doesn't take 50,000 years to run
+model2 <- lm(ncasualties~., data.reduced)
+summary(model2)
+# The R-squared value is miserably low
+
+# Quick backwards selection
+model3 <- lm(ncasualties~ iyear + region + doubtterr + suicide + attacktype1 + targsubtype1 + weaptype1 + property, data.reduced)
+summary(model3)
+plot(model3)
+
+# Remove outliers. I don't think that we will be able to accuratly predict them (there are only 12 points out of over 100,000 greater than 1000)
+data.reduced.2 <- subset(data.reduced, data.reduced$ncasualties < 1000)
+model4 <- lm(ncasualties~ iyear + region + doubtterr + suicide + attacktype1 + targsubtype1 + weaptype1 + property, data.reduced.2)
+summary(model4)
+plot(model4)
