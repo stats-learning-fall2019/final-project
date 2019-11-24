@@ -150,6 +150,13 @@ rsq(na.omit(data.subset.2)$ncasualties, predict(model7,data.subset.2)) # 0.13381
 
 
 # Try random forest
+rf.data <- data.subset
+rf.data$targsubtype1 <- NULL
 
+model10 <- randomForest(na.omit(rf.data)[,1:26], na.omit(rf.data)$ncasualties)
+plot(model10)
+summary(model10)
 
+varImpPlot(model10)
 
+rsq(na.omit(data.subset.2)$ncasualties, predict(model10,na.omit(data.subset.2))) # 0.2327896
