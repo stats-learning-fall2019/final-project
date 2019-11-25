@@ -230,7 +230,7 @@ if (exporting_graphics) {
   generate_plots()
 }
 
-data$cluster_id <- clusters$cluster
+data$cluster_id <- as.factor(clusters$cluster)
 
 # calculate number of attacks grouped by geocluster, imonth, and iday
 data <- data %>% group_by(cluster_id, imonth, iday) %>% summarize(n_attacks=n())
@@ -416,15 +416,15 @@ tune.out <- tune(method=svm,
                  probability=TRUE,
                  decision.values=TRUE)
 
-# best model params: cost = 10; gamma = 1
+# best model params: cost = 10; gamma = 0.5
 summary(tune.out)
 
 svm.best.radial.fit <- tune.out$best.model
 svm.best.radial.pred <- predict(svm.best.radial.fit, newdata = testing_data, probability = TRUE)
 
-p_high <- attr(svm.best.radial.pred, 'probabilities')[,2]
-pred <- rep('low', nrow(testing_data))
-pred[p_high > 0.5] <- 'high'
+# p_high <- attr(svm.best.radial.pred, 'probabilities')[,2]
+# pred <- rep('low', nrow(testing_data))
+# pred[p_high > 0.5] <- 'high'
 
 svm.best.radial.perf <- perf_summary('Tuned-SVM (Radial), Variable Cost and Gamma', 
                                      actual=testing_data$risk_level, 
@@ -444,7 +444,6 @@ rocplot <- function(pred, truth, ...) {
 fitted.svm <- 1 - attributes(predict(svm.best.radial.fit, testing_data, decision.values = TRUE))$decision.values
 fitted.rf <- predict(rf.fit, testing_data, type="prob")[,1]
 fitted.tree <- predict(tree.fit, testing_data, type="prob")[,1]
-fitted.qda <- predict(qda.fit, testing_data, type="prob")$posterior[,1]
 fitted.lda <- predict(lda.fit, testing_data, type="prob")$posterior[,1]
 
 if (exporting_graphics) {
@@ -457,20 +456,19 @@ if (exporting_graphics) {
       res=192)
   
   rocplot(fitted.lda, testing_data$risk_level, col=2, cex.lab=1.5)
-  rocplot(fitted.qda, testing_data$risk_level, col=3, add=TRUE)
-  rocplot(fitted.tree, testing_data$risk_level, col=4, add=TRUE)
-  rocplot(fitted.rf, testing_data$risk_level, col=5, add=TRUE)
-  rocplot(fitted.svm, testing_data$risk_level, col=6, add=TRUE)
+  rocplot(fitted.tree, testing_data$risk_level, col=3, add=TRUE)
+  rocplot(fitted.rf, testing_data$risk_level, col=4, add=TRUE)
+  rocplot(fitted.svm, testing_data$risk_level, col=5, add=TRUE)
   
   abline(a=0, b=1, lty=3)
-  legend(0.8, 0.4, c("LDA", "QDA", "Tree", "Forest", "SVM"), 2:6)
+  legend(0.8, 0.4, c("LDA", "Tree", "Forest", "SVM"), 2:5)
   dev.off()
 }
 
 #*******************#
 # generate TPR plot #
 #*******************#
-models <- c("LDA", "QDA", "Decision\nTree", "Random\nForest", "SVM")
+models <- c("LDA", "Decision\nTree", "Random\nForest", "SVM")
 model_tpr = c(lda.perf$tpr, qda.perf$tpr, tree.perf$tpr, rf.perf$tpr, svm.best.radial.perf$tpr)
 colors <- c('slategray', 'slategray', 'slategray1', 'slategray1', 'slategray2')
 
