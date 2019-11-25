@@ -375,6 +375,8 @@ lines(roc(roc61, roc62, direction='<'), col='orange', lwd=1)
 
 # Best model seems to be tree.model5
 important.vars <- summary(tree.model5)$variable.importance
+plot(important.vars)
+#varImpPlot(tree.model5)
 important.vars
 fancyRpartPlot(tree.model5)
 # ishostkid: Hostages (yes/no)
@@ -442,8 +444,16 @@ accuracy # 0.6888043
 
 # If seems fairly clear that the current model is overfitting the data. Pruning seems like the best option
 fancyRpartPlot(tree.model6.train)
+
+#prune <- prune.tree(tree.model6.train)
+rsq.rpart(tree.model6)
+
 pruned <- prune(tree.model6.train, cp=.02)
 fancyRpartPlot(pruned)
+
+#plot(cutoff$size,cutoff$dev)
+#plot(cutoff$k,cutoff$dev)
+
 
 pred <- rep(1, nrow(test))
 pred[predict(pruned, test)[,1] <.6] <- 0

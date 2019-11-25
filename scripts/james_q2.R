@@ -84,7 +84,7 @@ summary(model2)
 # Quick backwards selection
 model3 <- lm(ncasualties~ iyear + region + doubtterr + suicide + attacktype1 + targsubtype1 + weaptype1 + property, data.reduced)
 summary(model3)
-#plot(model3)
+plot(model3)
 
 # Remove outliers. I don't think that we will be able to accuratly predict them (there are only 12 points out of over 100,000 greater than 1000)
 data.reduced.2 <- subset(data.reduced, data.reduced$ncasualties < 1000)
@@ -92,7 +92,13 @@ data.reduced.2 <- subset(data.reduced.2, data.reduced.2$ncasualties != 0)
 model4 <- lm(log(ncasualties)~ iyear + region + doubtterr + suicide + attacktype1 + weaptype1, data.reduced.2)
 summary(model4)
 
-#plot(model4)
+plot(model4)
+
+# Try interaction terms
+model4.1 <- lm(log(ncasualties)~ iyear + region + doubtterr + suicide + attacktype1 + weaptype1 
+               + iyear*region*doubtterr*suicide*attacktype1*weaptype1, data.reduced.2)
+summary(model4.1)
+plot(model4.1)
 
 # Add 0s back in
 data.reduced.2 <- subset(data.reduced, data.reduced$ncasualties < 1000)
@@ -102,7 +108,7 @@ model5 <- rpart(ncasualties~ iyear + region + doubtterr + attacktype1 + weaptype
 summary(model5)
 fancyRpartPlot(model5)
 
- model6 <- rpart(ncasualties~., data.reduced.2)
+model6 <- rpart(ncasualties~., data.reduced.2)
 summary(model6) 
 fancyRpartPlot(model6)
 rsq.rpart(model6)
