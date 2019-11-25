@@ -33,6 +33,7 @@ corrplot(corr, method = "square")
 # Remove columns with an excessive amount of NAs
 NA.per.column <- sapply(data.numeric, function(x) sum(is.na(x)))
 data.reduced <- data.numeric[,which(NA.per.column < 10000)]
+removed <-  colnames(data.numeric[,which(NA.per.column >= 10000)])
 
 data.reduced <- data.frame(data.reduced,success.text=ifelse(data.reduced$success==0,"No","Yes"))
 tree.model1=tree(success.text~.-success,data.reduced)
@@ -135,7 +136,8 @@ tree.model3
 #   7) attacktype1.1 > 0.5 1082  1454.0 1 ( 0.397412 0.602588 ) *
 tree.model4 <- rpart(success~., data.encoded)
 tree.model4
-fancyRpartPlot(tree.model4)
+fancyRpartPlot(tree.model4, caption='')
+rsq.rpart(tree.model4)
 summary(tree.model4)
 # Variable importance
 # attacktype1.3   weaptype1.6      property   weaptype1.5   targtype1.3  targtype1.14   targtype1.4         crit3 attacktype1.1     doubtterr 
@@ -209,12 +211,12 @@ table(data.balanced$data$success) # "Perfectly balanced, as all things should be
 # Create model 5
 tree.model5 <- rpart(success~., data.balanced$data)
 tree.model5
-fancyRpartPlot(tree.model5)
+fancyRpartPlot(tree.model5, caption='')
 summary(tree.model5)
 
 # Check model 5
-pred <- rep(0, nrow(data.balanced$data))
-pred[predict(tree.model5)[,1] <.5] <- 1
+pred <- rep(1, nrow(data.balanced$data))
+pred[predict(tree.model5)[,1] <.5] <- 0
 actual <- data.balanced$data$success
 results <- table(actual, pred)
 
@@ -253,11 +255,11 @@ roc21 <- actual
 roc22 <- pred
 
 # Plot ROC curves
-plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
-lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
+plot(roc1 <- roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
+lines(roc2 <- roc(roc21, roc22, direction='<'), col='red', lwd=3)
 # seems like the new model might have a little bit more area under the curve. Neither look that good.
-
-
+auc(roc1)
+auc(roc2)
 
 ## Let's try a completely different approach. Logistic Regression
 logistic.model1 <- glm(success~., family="binomial",data.encoded)
@@ -375,7 +377,12 @@ lines(roc(roc61, roc62, direction='<'), col='orange', lwd=1)
 
 # Best model seems to be tree.model5
 important.vars <- summary(tree.model5)$variable.importance
-plot(important.vars)
+top.important.vars <- important.vars[1:5]
+plot(top.important.vars,xaxt="n")
+axis(1,at=1:length(top.important.vars),labels=names(top.important.vars))
+
+library(lattice)
+barchart(rev(important.vars), col='grey')
 #varImpPlot(tree.model5)
 important.vars
 fancyRpartPlot(tree.model5)
@@ -403,8 +410,8 @@ table(select.balanced$data$success)
 tree.model6 <- rpart(success~., data=select.balanced$data)
 
 important.vars <- summary(tree.model6)$variable.importance
-important.vars
-fancyRpartPlot(tree.model6)
+barchart(rev(important.vars), col='grey')
+fancyRpartPlot(tree.model6, caption='')
 
 # Check new model
 pred <- rep(0, nrow(data.balanced$data))
@@ -449,7 +456,7 @@ fancyRpartPlot(tree.model6.train)
 rsq.rpart(tree.model6)
 
 pruned <- prune(tree.model6.train, cp=.02)
-fancyRpartPlot(pruned)
+fancyRpartPlot(pruned, caption='')
 
 #plot(cutoff$size,cutoff$dev)
 #plot(cutoff$k,cutoff$dev)
@@ -472,11 +479,12 @@ roc72 <- pred
 
 plot(roc(roc11, roc12, direction='<'), col='blue', lwd=3, main='ROC Curves')
 lines(roc(roc21, roc22, direction='<'), col='red', lwd=3)
-lines(roc(roc71, predict(pruned, test)[,1], direction='<'), col='green', lwd=3)
+lines(roc3 <- roc(roc71, predict(pruned, test)[,1], direction='<'), col='green', lwd=3)
 lines(roc(roc41, roc42, direction='<'), col='yellow', lwd=3)
 lines(roc(roc51, roc52, direction='<'), col='purple', lwd=3)
 lines(roc(roc61, roc62, direction='<'), col='orange', lwd=3)
 
+auc(roc3)
 # Create graphic for Tree Model 6
 for (i in 4:ncol(select.balanced$data)) {
   if (colnames(select.balanced$data)[i] != "longitude" && colnames(select.balanced$data)[i] != "latitude"){
@@ -489,4 +497,5 @@ colnames(select.balanced$data)[colnames(select.balanced$data)=="attacktype1.6"] 
 
 # Create Graphic
 tree.model6 <- rpart(success~., data=select.balanced$data)
-fancyRpartPlot(tree.model6, sub='', type=2)
+pruned <- prune(tree.model6, cp=.02)
+fancyRpartPlot(pruned, sub='', type=2)
