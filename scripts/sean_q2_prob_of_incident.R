@@ -48,9 +48,13 @@ load_pkgs(c(
   
   # pretty plotting of decision trees
   "rpart.plot",
+  "rattle",
   
   # data balancing
-  "ROSE"
+  "ROSE",
+  
+  # roc plots
+  "ROCR"
 ))
 
 exporting_graphics = FALSE
@@ -223,10 +227,10 @@ if (exporting_graphics) {
   generate_plots()
 }
 
-data$geocluster <- clusters$cluster
+data$cluster_id <- clusters$cluster
 
 # calculate number of attacks grouped by geocluster, imonth, and iday
-data <- data %>% group_by(geocluster, imonth, iday) %>% summarize(n_attacks=n())
+data <- data %>% group_by(cluster_id, imonth, iday) %>% summarize(n_attacks=n())
 
 View(data)
 mu <- mean(data$n_attacks)
@@ -295,73 +299,157 @@ n_testing <- nrow(testing_data)
 
 n_high <- nrow(training_data[training_data$risk_level == 'high',])
 n_low <- nrow(training_data[training_data$risk_level == 'low',])
-# 
-# 
-# 
-# #----------------#
-# # Model Creation #
-# #----------------#
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# 
-# conf_matrix <- function(actual, pred, data) {
-#   comp <- data.frame(matrix(nrow=nrow(data), ncol=2))
-#   colnames(comp) <- c('predicted', 'actual')
-#   
-#   comp$predicted <- pred
-#   comp$actual <- actual
-#   
-#   comp$pred_id <- sapply(comp$predicted, map_group_to_id)
-#   comp$actual_id <- sapply(comp$actual, map_group_to_id)
-#   
-#   return(as.matrix(table(comp$actual_id, comp$pred_id)))
-# }
-# 
-# perf_summary <- function(desc, actual, pred, data) {
-#   cat('Model Summary for ', desc)
-#   
-#   cm <- conf_matrix(actual, pred, data)
-#   print(cm)
-#   
-#   total <- length(actual)
-#   tp <- sum(actual == pred)
-#   tpr <- tp / total
-#   fp <- sum(actual != pred)
-#   fpr <- fp / total
-#   
-#   cat('# Total: ', total, "\n")
-#   cat('# True Positives (TP): ', tp, "\n")
-#   cat('% True Positive Rate (TPR): ', tpr, "\n")
-#   cat('# False Positives (FP): ', fp, "\n")
-#   cat('% False Positive Rate (FPR): ', fpr, "\n")
-#   
-#   return(list(tpr=tpr, fpr=fpr, cm=cm))
-# }
+
+#----------------#
+# Model Creation #
+#----------------#
+
+conf_matrix <- function(actual, pred, data) {
+  comp <- data.frame(matrix(nrow=nrow(data), ncol=2))
+  colnames(comp) <- c('predicted', 'actual')
+  
+  comp$predicted <- pred
+  comp$actual <- actual
+  
+  return(as.matrix(table(comp$actual, factor(comp$predicted, levels=c("high", "low")))))
+}
+
+perf_summary <- function(desc, actual, pred, data) {
+  cat('Model Summary for ', desc)
+  
+  cm <- conf_matrix(actual, pred, data)
+  print(cm)
+  
+  total <- length(actual)
+  tp <- sum(actual == pred)
+  tpr <- tp / total
+  fp <- sum(actual != pred)
+  fpr <- fp / total
+  
+  cat('# Total: ', total, "\n")
+  cat('# True Positives (TP): ', tp, "\n")
+  cat('% True Positive Rate (TPR): ', tpr, "\n")
+  cat('# False Positives (FP): ', fp, "\n")
+  cat('% False Positive Rate (FPR): ', fpr, "\n")
+  
+  return(list(tpr=tpr, fpr=fpr, cm=cm))
+}
+
+
+model_formula <- risk_level~iday + imonth + cluster_id
+
+
+#******************************#
+# Linear Discriminant Analysis #
+#******************************#
+lda.fit <- lda(model_formula, data=training_data)
+lda.fit
+
+lda.pred <- predict(lda.fit, testing_data)$class
+lda.perf <- perf_summary('LDA', actual=testing_data$risk_level, pred=lda.pred, data=testing_data)
+
+#*********************************#
+# Quadratic Discriminant Analysis #
+#*********************************#
+qda.fit <- qda(model_formula, data=training_data)
+qda.fit
+
+qda.pred <- predict(qda.fit, testing_data)$class
+qda.perf <-perf_summary('QDA', actual=testing_data$risk_level, pred=qda.pred, data=testing_data)
+
+#***************#
+# Decision Tree #
+#***************#
+tree.fit=rpart(model_formula, training_data)
+summary(tree.fit)
+
+exporting_tree = FALSE
+if (exporting_tree) {
+  png(filename="presentation/graphics/sean/q1_decision_tree_with_geo.png",
+      type="cairo", # use this for higher quality exports
+      units="in",
+      width=10,
+      height=8,
+      pointsize=12,
+      res=192)
+  
+  # must use rpart for this to work!
+  # prp(tree.fit)
+  fancyRpartPlot(tree.fit)
+  dev.off()
+}
+
+tree.pred=predict(tree.fit, newdata = testing_data, type = "class", decision.variables=TRUE)
+tree.perf <- perf_summary('Decision Tree', actual=testing_data$risk_level, pred=tree.pred, data=testing_data)
+
+#****************#
+# Random Forests #
+#****************#
+set.seed(1)
+rf.fit=randomForest(model_formula, data=training_data, mtry=2, ntree=20, importance=TRUE, decision.variables=TRUE, probabilities=TRUE)
+summary(rf.fit)
+rf.pred=predict(rf.fit, newdata = testing_data, type = "class", decision.variables=TRUE)
+
+importance(rf.fit)
+varImpPlot(rf.fit)
+
+rf.perf <- perf_summary('Random Forest', actual=testing_data$risk_level, pred=rf.pred, data=testing_data)
+
+
+#*************************#
+# Support Vector Machines #
+#*************************#
+
+# tuning cost to find best model
+set.seed(1)
+
+# subset of training data to reduce time
+svm.training_data <- training_data[sample(n_training, size=1000), ]
+
+tune.out <- tune(method=svm,
+                 train.x=model_formula,
+                 data=svm.training_data,
+                 kernel="radial",
+                 ranges=list(cost=c(0.01,1,10,100),
+                             gamma=c(0.5,1,2,3,4)),
+                 scale=FALSE,
+                 probability=TRUE,
+                 decision.values=TRUE)
+
+# best model params: cost = 10; gamma = 1
+summary(tune.out)
+
+svm.best.radial.fit <- tune.out$best.model
+svm.best.radial.pred <- predict(svm.best.radial.fit, newdata = testing_data, probability = TRUE)
+
+p_high <- attr(svm.best.radial.pred, 'probabilities')[,2]
+pred <- rep('low', nrow(testing_data))
+pred[p_high > 0.5] <- 'high'
+
+svm.best.radial.perf <- perf_summary('Tuned-SVM (Radial), Variable Cost and Gamma', 
+                                     actual=testing_data$risk_level, 
+                                     pred=svm.best.radial.pred, 
+                                     data=testing_data)
+
+
+rocplot <- function(pred, truth, ...) {
+  predob <- prediction(pred, truth)
+  perf <- performance(predob, "tpr", "fpr")
+  plot(perf, ...)
+}
+
+# generate ROC plot
+fitted.svm <- attributes(predict(svm.best.radial.fit, testing_data, decision.values = TRUE))$decision.values
+fitted.rf <- predict(rf.fit, testing_data, type="prob")[,1]
+fitted.tree <- predict(tree.fit, testing_data, type="prob")[,1]
+fitted.qda <- predict(qda.fit, testing_data, type="prob")$posterior[,1]
+fitted.lda <- predict(lda.fit, testing_data, type="prob")$posterior[,1]
+
+rocplot(fitted.lda, testing_data$risk_level, col=2, cex.lab=1.5)
+rocplot(fitted.qda, testing_data$risk_level, col=3, add=TRUE)
+rocplot(fitted.tree, testing_data$risk_level, col=4, add=TRUE)
+rocplot(fitted.rf, testing_data$risk_level, col=5, add=TRUE)
+rocplot(fitted.svm, testing_data$risk_level, col=6, add=TRUE)
+
+abline(a=0, b=1, lty=3)
+legend(0.8, 0.4, c("LDA", "QDA", "Tree", "Forest", "SVM"), 2:6)
