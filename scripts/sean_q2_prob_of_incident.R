@@ -47,7 +47,10 @@ load_pkgs(c(
   "rpart",
   
   # pretty plotting of decision trees
-  "rpart.plot"
+  "rpart.plot",
+  
+  # data balancing
+  "ROSE"
 ))
 
 exporting_graphics = FALSE
@@ -141,6 +144,8 @@ plot_cluster <- function(geocoords, clusters, id, color) {
 
 generate_plots <- function() {
   
+  world_map <- borders("world", colour="gray50", fill="gray50")
+  
   # adjust size as necessary
   subset <- sample(nrow(geocoords), size=nrow(geocoords))
   
@@ -157,7 +162,20 @@ generate_plots <- function() {
       height=12, 
       pointsize=12, 
       res=192)
-  plot(geocoords[subset,], col = sapply(clusters$cluster[subset], function(id) as.character(colors[id])))
+  p <- ggplot(geocoords[subset,], aes(x = pts$longitude, y = pts$latitude)) + world_map + coord_equal()
+  
+  for (id in seq(n_clusters)) {
+    pts <- geocoords[clusters$cluster == id, ]
+    p <- p + geom_point(aes(x = longitude, y = latitude), color=colors[id], data = pts, show.legend = FALSE)
+  }
+  p <- p + theme(axis.title.x=element_blank(),
+                       axis.text.x=element_blank(),
+                       axis.ticks.x=element_blank(),
+                       axis.title.y=element_blank(),
+                       axis.text.y=element_blank(),
+                       axis.ticks.y=element_blank(),
+                       plot.margin = unit(c(0,0,0,0), "cm"))
+  plot(p)
   dev.off()
   
   print('Generating Centroids Plot')
@@ -210,6 +228,7 @@ data$geocluster <- clusters$cluster
 # calculate number of attacks grouped by geocluster, imonth, and iday
 data <- data %>% group_by(geocluster, imonth, iday) %>% summarize(n_attacks=n())
 
+View(data)
 mu <- mean(data$n_attacks)
 sigma <- sd(data$n_attacks)
 
@@ -220,28 +239,32 @@ if (exporting_graphics) {
   png(filename="presentation/graphics/sean/q2_n_attacks_density_plot.png", 
       type="cairo", # use this for higher quality exports
       units="in", 
-      width=14, 
-      height=12, 
+      width=6, 
+      height=4, 
       pointsize=12, 
       res=192)
   d <- density(data$n_attacks)
-  plot(d, main="Density Plot of Number of Terrorist Attacks Per Month/Day per Geocluster")
+  plot(d, cex.lab=1.5, cex.axis=1.5, main="", xlab="Number of Attacks Per Event Group")
   polygon(d, col="red", border="black")
-  abline(v=high_threshold, lty=2, col='blue')
+  abline(v=high_threshold, lty=2, col='blue', lwd=3)
   legend("right", legend=c("HIGH THRESHOLD"), col=c("blue"), lty=2, lwd=1, text.font=4, box.lty=0)
   dev.off()
 }
+
+# adds unique identifiers
+data$event_group_id <- seq(nrow(data))
 
 #****************************************#
 # create response categories (low, high) #
 #****************************************#
 
-data$risk_level <- lapply(data$n_attacks, function(n) if(n > high_threshold) "high" else "low")
+data$risk_level <- sapply(data$n_attacks, function(n) if(n > high_threshold) "high" else "low")
+data$risk_level <- as.factor(data$risk_level)
 
 nrow(data[which(data$risk_level == 'high'),])
-View(data[which(data$risk_level == 'high'),])
+nrow(data[which(data$risk_level == 'low'),])
 
-nrow(data)
+# View(data)
 
 
 #-----------------------#
@@ -253,43 +276,25 @@ training_indices <- sample(seq(nrow(data)), size=nrow(data)*0.8)
 training_data <- data[training_indices,]
 testing_data <- data[-training_indices,]
 
+# TODO: Check into fancyRPartPlot
+
+#--------------#
+# Balance Data #
+#--------------#
+
+# balance and shuffle observations
+training_data <- ovun.sample(risk_level~.,data=training_data, method="over")$data
+training_data <- training_data[sample(nrow(training_data)),]
+nrow(training_data)
+
+length(which(training_data$risk_level == 'low'))
+length(which(training_data$risk_level == 'high'))
+
 n_training <- nrow(training_data)
 n_testing <- nrow(testing_data)
 
 n_high <- nrow(training_data[training_data$risk_level == 'high',])
 n_low <- nrow(training_data[training_data$risk_level == 'low',])
-
-
-#--------------#
-# Balance Data #
-#--------------#
-balance_data <- function(data, target) {
-  data_temp <- data.frame()
-
-  for (gname in terrorist_groups$gname) {
-    incidents_for_group <- which(data$gname == gname)
-    n_incidents <- length(incidents_for_group)
-
-    with_repeats <- if(n_incidents >= target) FALSE else TRUE
-    selection <- data[sample(incidents_for_group, size=target, replace = with_repeats),]
-    data_temp <- rbind(data_temp, selection)
-  }
-
-  # shuffle observations
-  data_temp <- data_temp[sample(nrow(data_temp),
-                                size=nrow(data_temp),
-                                replace = FALSE),]
-
-  return(data_temp)
-}
-
-# balance data using "oversampling" method
-# target <- median((training_data %>% group_by(gname) %>% summarize(n=n()) %>% select(n))$n)
-target <- max((training_data %>% group_by(gname) %>% summarize(n=n()) %>% select(n))$n)
-training_data <- balance_data(training_data, target=target)
-# 
-# n_training <- nrow(training_data)
-# n_testing <- nrow(testing_data)
 # 
 # 
 # 
