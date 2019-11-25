@@ -54,10 +54,12 @@ load_pkgs(c(
   "ROSE",
   
   # roc plots
-  "ROCR"
+  "ROCR",
+  
+  "corrplot"
 ))
 
-exporting_graphics = FALSE
+exporting_graphics = TRUE
 
 # Load data
 gtdb_data_file = 'data/gtdb_cleansed.csv'
@@ -90,6 +92,7 @@ nrow(data_2000_to_2010)
 nrow(data_2010_to_pres)
 
 data <- data_2010_to_pres
+
 
 #*******************#
 # choosing features #
@@ -363,9 +366,8 @@ qda.perf <-perf_summary('QDA', actual=testing_data$risk_level, pred=qda.pred, da
 tree.fit=rpart(model_formula, training_data)
 summary(tree.fit)
 
-exporting_tree = FALSE
-if (exporting_tree) {
-  png(filename="presentation/graphics/sean/q1_decision_tree_with_geo.png",
+if (exporting_graphics) {
+  png(filename="presentation/graphics/sean/q2_decision_tree.png",
       type="cairo", # use this for higher quality exports
       units="in",
       width=10,
@@ -374,7 +376,6 @@ if (exporting_tree) {
       res=192)
   
   # must use rpart for this to work!
-  # prp(tree.fit)
   fancyRpartPlot(tree.fit)
   dev.off()
 }
@@ -390,7 +391,6 @@ rf.fit=randomForest(model_formula, data=training_data, mtry=2, ntree=20, importa
 summary(rf.fit)
 rf.pred=predict(rf.fit, newdata = testing_data, type = "class", decision.variables=TRUE)
 
-importance(rf.fit)
 varImpPlot(rf.fit)
 
 rf.perf <- perf_summary('Random Forest', actual=testing_data$risk_level, pred=rf.pred, data=testing_data)
@@ -438,18 +438,50 @@ rocplot <- function(pred, truth, ...) {
   plot(perf, ...)
 }
 
-# generate ROC plot
-fitted.svm <- attributes(predict(svm.best.radial.fit, testing_data, decision.values = TRUE))$decision.values
+#*******************#
+# generate ROC plot #
+#*******************#
+fitted.svm <- 1 - attributes(predict(svm.best.radial.fit, testing_data, decision.values = TRUE))$decision.values
 fitted.rf <- predict(rf.fit, testing_data, type="prob")[,1]
 fitted.tree <- predict(tree.fit, testing_data, type="prob")[,1]
 fitted.qda <- predict(qda.fit, testing_data, type="prob")$posterior[,1]
 fitted.lda <- predict(lda.fit, testing_data, type="prob")$posterior[,1]
 
-rocplot(fitted.lda, testing_data$risk_level, col=2, cex.lab=1.5)
-rocplot(fitted.qda, testing_data$risk_level, col=3, add=TRUE)
-rocplot(fitted.tree, testing_data$risk_level, col=4, add=TRUE)
-rocplot(fitted.rf, testing_data$risk_level, col=5, add=TRUE)
-rocplot(fitted.svm, testing_data$risk_level, col=6, add=TRUE)
+if (exporting_graphics) {
+  png(filename="presentation/graphics/sean/q2_roc.png", 
+      type="cairo", # use this for higher quality exports
+      units="in", 
+      width=9, 
+      height=6, 
+      pointsize=12, 
+      res=192)
+  
+  rocplot(fitted.lda, testing_data$risk_level, col=2, cex.lab=1.5)
+  rocplot(fitted.qda, testing_data$risk_level, col=3, add=TRUE)
+  rocplot(fitted.tree, testing_data$risk_level, col=4, add=TRUE)
+  rocplot(fitted.rf, testing_data$risk_level, col=5, add=TRUE)
+  rocplot(fitted.svm, testing_data$risk_level, col=6, add=TRUE)
+  
+  abline(a=0, b=1, lty=3)
+  legend(0.8, 0.4, c("LDA", "QDA", "Tree", "Forest", "SVM"), 2:6)
+  dev.off()
+}
 
-abline(a=0, b=1, lty=3)
-legend(0.8, 0.4, c("LDA", "QDA", "Tree", "Forest", "SVM"), 2:6)
+#*******************#
+# generate TPR plot #
+#*******************#
+models <- c("LDA", "QDA", "Decision\nTree", "Random\nForest", "SVM")
+model_tpr = c(lda.perf$tpr, qda.perf$tpr, tree.perf$tpr, rf.perf$tpr, svm.best.radial.perf$tpr)
+colors <- c('slategray', 'slategray', 'slategray1', 'slategray1', 'slategray2')
+
+png(filename="presentation/graphics/sean/q2_barplot_model_perf.png",
+    type="cairo", # use this for higher quality exports
+    units="in",
+    width=10,
+    height=8,
+    pointsize=12,
+    res=192)
+barplot(model_tpr, horiz=TRUE, names.arg=models, xlim=c(0,1), 
+        cex.lab=1.3, cex.axis=1.2, cex.names=1.4, xlab="True Positive Rate", 
+        col=colors)
+dev.off()
