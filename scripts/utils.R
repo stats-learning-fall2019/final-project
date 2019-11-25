@@ -110,6 +110,10 @@ cleanse_data <- function(data, drop_columns = FALSE) {
   return(data)
 }
 
+distinct_values <- function(variable, data) {
+  return(data %>% select(variable) %>% filter(! is.na(variable)) %>% distinct())
+}
+
 random_colors <- function(n) {
   load_pkgs(c('RColorBrewer'))
   
