@@ -112,8 +112,7 @@ data$latitude <- as.numeric(data$latitude)
 data$iday <- as.numeric(data$iday)
 data$imonth <- as.numeric(data$imonth)
 
-
-# remove observations with any NA values
+# remove observations with any NA values (86,300 remaining)
 data <- na.omit(data)
 
 #*********************#
@@ -123,100 +122,62 @@ n_clusters = 32
 
 # want 32 clusters to allow factor to be used with decision trees, which have max of 32
 geocoords <- data %>% select(longitude, latitude)
-geocoords <- na.omit(geocoords)
 
-# helper function to plot points for a single cluster on a world map
-plot_cluster <- function(geocoords, clusters, id, color) {
+
+plot_clusters <- function(geocoords, clusters, clusters_to_plot, colors, 
+                          annotate=FALSE, annotate_text_size) {
   world_map <- borders("world", colour="gray50", fill="gray50")
-  
-  pts <- geocoords[clusters$cluster == id, ]
-  plot <- ggplot(pts, aes(x = pts$longitude, y = pts$latitude)) + 
-    world_map + 
-    coord_equal() + 
-    geom_point(aes(x = longitude, 
-                   y = latitude),
-               color=color,
-               data = pts, 
-               show.legend = FALSE) +
-    theme(axis.title.x=element_blank(),
-          axis.text.x=element_blank(),
-          axis.ticks.x=element_blank(),
-          axis.title.y=element_blank(),
-          axis.text.y=element_blank(),
-          axis.ticks.y=element_blank(),
-          plot.margin = unit(c(0,0,0,0), "cm"))
-  
+  plot <- ggplot(x=NA, xlim=c(-180,180), ylim=c(-90,90)) + world_map
+  for (id in clusters_to_plot) {
+    plot <- plot + geom_point(aes(x = longitude, y = latitude), 
+                              color=colors[id], 
+                              data = geocoords[clusters$cluster == id, ], 
+                              show.legend = FALSE)
+    if (annotate) {
+      plot <- plot + annotate(geom="text", 
+                              x=clusters$centers[id,][1],
+                              y=clusters$centers[id,][2], 
+                              label=as.character(id), 
+                              size=annotate_text_size, 
+                              fontface="bold", 
+                              color="black")
+    }
+  }
   return(plot)
 }
 
-generate_plots <- function() {
+generate_plots <- function(geocoords, clusters, colors) {
   
   world_map <- borders("world", colour="gray50", fill="gray50")
   
   # adjust size as necessary
   subset <- sample(nrow(geocoords), size=nrow(geocoords))
   
-  # color scheme for clusters
-  colfunc <- colorRampPalette(c("yellow", "red", "purple", "green", "orange"))
-  colors <- colfunc(n_clusters)
-
   print('Generating All Cluster Plot')
-  
   png(filename="presentation/graphics/sean/q2_kmeans_geo_all_clusters_single_map.png", 
       type="cairo", # use this for higher quality exports
       units="in", 
-      width=14, 
-      height=12, 
+      width=16, 
+      height=8, 
       pointsize=12, 
       res=192)
-  p <- ggplot(geocoords[subset,], aes(x = pts$longitude, y = pts$latitude)) + world_map + coord_equal()
-  
-  for (id in seq(n_clusters)) {
-    pts <- geocoords[clusters$cluster == id, ]
-    p <- p + geom_point(aes(x = longitude, y = latitude), color=colors[id], data = pts, show.legend = FALSE)
-  }
-  p <- p + theme(axis.title.x=element_blank(),
-                       axis.text.x=element_blank(),
-                       axis.ticks.x=element_blank(),
-                       axis.title.y=element_blank(),
-                       axis.text.y=element_blank(),
-                       axis.ticks.y=element_blank(),
-                       plot.margin = unit(c(0,0,0,0), "cm"))
-  plot(p)
+  plot(plot_clusters(geocoords = geocoords, 
+                     clusters = clusters, 
+                     clusters_to_plot = seq(n_clusters), 
+                     colors=colors,
+                     annotate=TRUE, annotate_text_size=4))
   dev.off()
   
   print('Generating Centroids Plot')
-  
   png(filename="presentation/graphics/sean/q2_kmeans_geo_clusters_centroids.png", 
       type="cairo", # use this for higher quality exports
       units="in", 
-      width=14, 
-      height=12, 
+      width=16, 
+      height=8, 
       pointsize=12, 
       res=192)
   plot(geocoords[subset,], col = 'black')
   points(clusters$centers, col = 'red', pch = 8, cex=2)
-  dev.off()  
-  
-  print('Generating Cluster Multi-Plot')
-  
-  # multi-plot of each cluster individually on world map
-  plots <- vector("list", n_clusters)
-  for (id in seq(n_clusters)) {
-    plots[[id]] <- plot_cluster(geocoords=geocoords, 
-                                clusters=clusters, 
-                                id=id,
-                                color=colors[id])
-  }
-  
-  png(filename="presentation/graphics/sean/q2_kmeans_geo_clusters.png", 
-      type="cairo", # use this for higher quality exports
-      units="in", 
-      width=14, 
-      height=12, 
-      pointsize=12, 
-      res=192)
-  ggarrange(plotlist = plots, labels = seq(n_clusters), ncol = 6, nrow = 6)
   dev.off()  
 }
 
@@ -225,17 +186,22 @@ generate_plots <- function() {
 set.seed(1)
 clusters <- kmeans(geocoords, centers=n_clusters, nstart = 25)
 
-# cluster related exports
+# cluster related graphics
 if (exporting_graphics) {
-  generate_plots()
+  
+  # color scheme for clusters
+  colfunc <- colorRampPalette(c("yellow", "red", "purple", "green", "orange"))
+  colors <- colfunc(n_clusters)
+  
+  generate_plots(geocoords, clusters, colors)
 }
+
 
 data$cluster_id <- as.factor(clusters$cluster)
 
 # calculate number of attacks grouped by geocluster, imonth, and iday
 data <- data %>% group_by(cluster_id, imonth, iday) %>% summarize(n_attacks=n())
 
-View(data)
 mu <- mean(data$n_attacks)
 sigma <- sd(data$n_attacks)
 
@@ -282,8 +248,6 @@ training_indices <- sample(seq(nrow(data)), size=nrow(data)*0.8)
 
 training_data <- data[training_indices,]
 testing_data <- data[-training_indices,]
-
-# TODO: Check into fancyRPartPlot
 
 #--------------#
 # Balance Data #
@@ -345,24 +309,17 @@ model_formula <- risk_level~iday + imonth + cluster_id
 #******************************#
 # Linear Discriminant Analysis #
 #******************************#
+set.seed(1)
 lda.fit <- lda(model_formula, data=training_data)
 lda.fit
 
 lda.pred <- predict(lda.fit, testing_data)$class
 lda.perf <- perf_summary('LDA', actual=testing_data$risk_level, pred=lda.pred, data=testing_data)
 
-#*********************************#
-# Quadratic Discriminant Analysis #
-#*********************************#
-qda.fit <- qda(model_formula, data=training_data)
-qda.fit
-
-qda.pred <- predict(qda.fit, testing_data)$class
-qda.perf <-perf_summary('QDA', actual=testing_data$risk_level, pred=qda.pred, data=testing_data)
-
 #***************#
 # Decision Tree #
 #***************#
+set.seed(1)
 tree.fit=rpart(model_formula, training_data)
 summary(tree.fit)
 
@@ -465,21 +422,29 @@ if (exporting_graphics) {
   dev.off()
 }
 
-#*******************#
-# generate TPR plot #
-#*******************#
-models <- c("LDA", "Decision\nTree", "Random\nForest", "SVM")
-model_tpr = c(lda.perf$tpr, qda.perf$tpr, tree.perf$tpr, rf.perf$tpr, svm.best.radial.perf$tpr)
-colors <- c('slategray', 'slategray', 'slategray1', 'slategray1', 'slategray2')
 
-png(filename="presentation/graphics/sean/q2_barplot_model_perf.png",
-    type="cairo", # use this for higher quality exports
-    units="in",
-    width=10,
-    height=8,
-    pointsize=12,
-    res=192)
-barplot(model_tpr, horiz=TRUE, names.arg=models, xlim=c(0,1), 
-        cex.lab=1.3, cex.axis=1.2, cex.names=1.4, xlab="True Positive Rate", 
-        col=colors)
-dev.off()
+#-------------#
+# Other plots #
+#-------------#
+
+
+#***************#
+# Cluster Plots #
+#***************#
+
+# plot <- plot_clusters(geocoords = geocoords, 
+#                  clusters = clusters, 
+#                  clusters_to_plot = seq(32), 
+#                  colors=colors, annotate=TRUE, annotate_text_size=4)
+# 
+# plot(plot)
+
+
+
+
+
+
+
+
+
+
