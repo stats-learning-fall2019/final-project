@@ -39,9 +39,10 @@ load_pkgs(c(
   
   # decision trees (alternate)
   "rpart",
-  
+
   # pretty plotting of decision trees
-  "rpart.plot"
+  "rpart.plot",
+  "rattle",
 ))
 
 # Load data
@@ -801,7 +802,7 @@ perf_summary <- function(desc, actual, pred, data) {
   return(list(tpr=tpr, fpr=fpr, cm=cm))
 }
 
-including_geospatial_vars <- FALSE
+including_geospatial_vars <- TRUE
 
 #******************************#
 # Linear Discriminant Analysis #
@@ -838,10 +839,10 @@ tree.formula.all <- gname~.-N
 tree.formula.nongeotemporal <- gname~.-N-region-latitude-longitude-iyear
 tree.formula <- if(including_geospatial_vars) tree.formula.all else tree.formula.nongeotemporal
   
-tree.fit=tree(tree.formula, training_data)
+tree.fit=rpart(tree.formula, training_data)
 summary(tree.fit)
 
-exporting_tree = FALSE
+exporting_tree = TRUE
 if (exporting_tree) {
   png(filename="presentation/graphics/sean/q1_decision_tree_with_geo.png",
       type="cairo", # use this for higher quality exports
@@ -853,8 +854,7 @@ if (exporting_tree) {
   
   # must use rpart for this to work!
   # prp(tree.fit)
-  plot(tree.fit)
-  text(tree.fit, pretty=0)
+  fancyRpartPlot(tree.fit)
   dev.off()
 }
 
@@ -920,7 +920,7 @@ png(filename="presentation/graphics/sean/q1_barplot_model_perf_with_geo.png",
     pointsize=12,
     res=192)
 barplot(model_tpr, horiz=TRUE, names.arg=models, xlim=c(0,1), 
-        cex.lab=1.3, cex.axis=1.2, cex.names=1.4, xlab="True Positive Rate", 
+        cex.lab=1.3, cex.axis=1.2, cex.names=1.4, xlab="Accuracy", 
         col=colors)
 abline(v=1.0/nrow(terrorist_groups), col='red', lty=2, lwd=3)
 legend("topright", legend=c("CHANCE"), col=c("red"), lty=2, lwd=3, text.font=4, box.lty=0)
