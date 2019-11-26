@@ -59,7 +59,7 @@ load_pkgs(c(
   "corrplot"
 ))
 
-exporting_graphics = TRUE
+exporting_graphics = FALSE
 
 # Load data
 gtdb_data_file = 'data/gtdb_cleansed.csv'
@@ -450,12 +450,27 @@ if (exporting_graphics) {
 # Cluster Plots #
 #***************#
 
-# plot <- plot_clusters(geocoords = geocoords, 
-#                  clusters = clusters, 
-#                  clusters_to_plot = seq(32), 
-#                  colors=colors, annotate=TRUE, annotate_text_size=4)
-# 
-# plot(plot)
+
+if (exporting_graphics) {
+  # color scheme for clusters
+  colfunc <- colorRampPalette(c("yellow", "red", "purple", "green", "orange"))
+  colors <- colfunc(n_clusters)
+  
+  plot <- plot_clusters(geocoords = geocoords,
+                   clusters = clusters,
+                   clusters_to_plot = c(5,7,22,23),
+                   colors=colors, annotate=TRUE, annotate_text_size=4)
+  
+  png(filename="presentation/graphics/sean/q2_high_risk_cluster_plot.png", 
+      type="cairo", # use this for higher quality exports
+      units="in", 
+      width=14, 
+      height=7, 
+      pointsize=12, 
+      res=192)
+  plot(plot)
+  dev.off()
+}
 
 
 
