@@ -105,15 +105,23 @@ data <- data %>% select(
   
   iday, # numerical
   imonth, # numerical
+  iyear # numerical
 )
 
 data$longitude <- as.numeric(data$longitude)
 data$latitude <- as.numeric(data$latitude)
 data$iday <- as.numeric(data$iday)
 data$imonth <- as.numeric(data$imonth)
+data$iyear <- as.numeric(data$iyear)
 
 # remove observations with any NA values (86,300 remaining)
 data <- na.omit(data)
+
+# add day of the week
+data <- data %>% filter(iday != 0) %>% mutate(weekday = weekdays(ISOdate(iyear, imonth, iday)))
+
+data$weekday <- as.factor(data$weekday)
+levels(data$weekday) <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
 
 #*********************#
 # cluster by lat/long #
@@ -199,8 +207,8 @@ if (exporting_graphics) {
 
 data$cluster_id <- as.factor(clusters$cluster)
 
-# calculate number of attacks grouped by geocluster, imonth, and iday
-data <- data %>% group_by(cluster_id, imonth, iday) %>% summarize(n_attacks=n())
+# calculate number of attacks grouped by geocluster, imonth, iday, weekday
+data <- data %>% group_by(cluster_id, imonth, weekday) %>% summarize(n_attacks=n())
 
 mu <- mean(data$n_attacks)
 sigma <- sd(data$n_attacks)
@@ -209,16 +217,14 @@ high_threshold <- mu + sigma
 
 # density plot for number of attacks
 if (exporting_graphics) {
-  png(filename="presentation/graphics/sean/q2_n_attacks_density_plot.png", 
+  png(filename="presentation/graphics/sean/q2_n_attacks_histogram.png", 
       type="cairo", # use this for higher quality exports
       units="in", 
       width=6, 
       height=4, 
       pointsize=12, 
       res=192)
-  d <- density(data$n_attacks)
-  plot(d, cex.lab=1.5, cex.axis=1.5, main="", xlab="Number of Attacks Per Event Group")
-  polygon(d, col="red", border="black")
+  hist(data$n_attacks, breaks=40, cex.lab=1.5, cex.axis=1.5, main="", xlab="Number of Attacks Per Event Group", col='red')
   abline(v=high_threshold, lty=2, col='blue', lwd=3)
   legend("right", legend=c("HIGH THRESHOLD"), col=c("blue"), lty=2, lwd=1, text.font=4, box.lty=0)
   dev.off()
@@ -226,6 +232,7 @@ if (exporting_graphics) {
 
 # adds unique identifiers
 data$event_group_id <- seq(nrow(data))
+
 
 #****************************************#
 # create response categories (low, high) #
@@ -237,13 +244,9 @@ data$risk_level <- as.factor(data$risk_level)
 nrow(data[which(data$risk_level == 'high'),])
 nrow(data[which(data$risk_level == 'low'),])
 
-# View(data)
-
-
 #-----------------------#
 # Split into Test/Train #
 #-----------------------#
-
 training_indices <- sample(seq(nrow(data)), size=nrow(data)*0.8)
 
 training_data <- data[training_indices,]
@@ -303,7 +306,7 @@ perf_summary <- function(desc, actual, pred, data) {
 }
 
 
-model_formula <- risk_level~iday + imonth + cluster_id
+model_formula <- risk_level~imonth + weekday + cluster_id
 
 
 #******************************#
@@ -315,6 +318,18 @@ lda.fit
 
 lda.pred <- predict(lda.fit, testing_data)$class
 lda.perf <- perf_summary('LDA', actual=testing_data$risk_level, pred=lda.pred, data=testing_data)
+
+#*********************************#
+# Quadratic Discriminant Analysis #
+#*********************************#
+
+# QDA produces "rank deficiency in group high" error
+# set.seed(1)
+# qda.fit <- qda(model_formula, data=training_data)
+# qda.fit
+# 
+# qda.pred <- predict(qda.fit, testing_data)$class
+# qda.perf <- perf_summary('QDA', actual=testing_data$risk_level, pred=qda.pred, data=testing_data)
 
 #***************#
 # Decision Tree #
@@ -344,7 +359,7 @@ tree.perf <- perf_summary('Decision Tree', actual=testing_data$risk_level, pred=
 # Random Forests #
 #****************#
 set.seed(1)
-rf.fit=randomForest(model_formula, data=training_data, mtry=2, ntree=20, importance=TRUE, decision.variables=TRUE, probabilities=TRUE)
+rf.fit=randomForest(model_formula, data=training_data, mtry=3, ntree=100, importance=TRUE, decision.variables=TRUE, probabilities=TRUE)
 summary(rf.fit)
 rf.pred=predict(rf.fit, newdata = testing_data, type = "class", decision.variables=TRUE)
 
@@ -373,7 +388,7 @@ tune.out <- tune(method=svm,
                  probability=TRUE,
                  decision.values=TRUE)
 
-# best model params: cost = 10; gamma = 0.5
+# best model params: cost = 1; gamma = 1
 summary(tune.out)
 
 svm.best.radial.fit <- tune.out$best.model
@@ -393,6 +408,9 @@ rocplot <- function(pred, truth, ...) {
   predob <- prediction(pred, truth)
   perf <- performance(predob, "tpr", "fpr")
   plot(perf, ...)
+  
+  auc <- performance(predob, measure = "auc")@y.values
+  return(auc)
 }
 
 #*******************#
@@ -412,13 +430,13 @@ if (exporting_graphics) {
       pointsize=12, 
       res=192)
   
-  rocplot(fitted.lda, testing_data$risk_level, col=2, cex.lab=1.5)
-  rocplot(fitted.tree, testing_data$risk_level, col=3, add=TRUE)
-  rocplot(fitted.rf, testing_data$risk_level, col=4, add=TRUE)
-  rocplot(fitted.svm, testing_data$risk_level, col=5, add=TRUE)
-  
+  auc.lda <- rocplot(fitted.lda, testing_data$risk_level, col="red", cex.lab=1.5, lwd=2)
+  auc.tree <- rocplot(fitted.tree, testing_data$risk_level, col="blue", lwd=2, add=TRUE)
+  auc.rf <- rocplot(fitted.rf, testing_data$risk_level, col="green", lwd=2, add=TRUE)
+  auc.svm <- rocplot(fitted.svm, testing_data$risk_level, col="purple", lwd=2, add=TRUE)
+
   abline(a=0, b=1, lty=3)
-  legend(0.8, 0.4, c("LDA", "Tree", "Forest", "SVM"), 2:5)
+  legend(0.8, 0.4, c("LDA", "Tree", "Forest", "SVM"), c("red", "blue", "green", "purple"))
   dev.off()
 }
 
